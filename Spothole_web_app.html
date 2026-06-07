@@ -178,6 +178,44 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw-SPX3KVc-UqPVS5IJx
 const SHEET_URL  = 'https://docs.google.com/spreadsheets/d/1BXHayOuxIZd7H8Oqq5NRRxiFq90teX0k2pdfX1N_wmU/edit';
 const SECRET     = 'spotholekey';          // must match the Apps Script
 
+// ── Browser / OS detection ────────────────────────────────────────────────
+const isIOS     = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+const isCriOS   = /CriOS/.test(navigator.userAgent);   // Chrome on iOS
+const isAndroid = /Android/.test(navigator.userAgent);
+
+// iOS + Chrome: show overlay — Apple blocks programmatic redirect to Safari
+if (isIOS && isCriOS) {
+  document.body.insertAdjacentHTML('beforeend', `
+    <div id="safari-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center;gap:16px">
+      <div style="font-size:52px">🧭</div>
+      <div style="color:#fff;font-size:20px;font-weight:600">Open in Safari</div>
+      <div style="color:#aeaeb2;font-size:14px;line-height:1.6">Spot Hole needs Safari on iPhone for<br>motion sensors and GPS to work.</div>
+      <div style="color:#aeaeb2;font-size:13px;line-height:1.6">Tap the <strong style="color:#fff">&#9094; Share</strong> button at the bottom<br>of Chrome, then choose <strong style="color:#fff">Open in Safari</strong>.</div>
+      <div style="width:100%;background:#1c1c1e;border-radius:10px;padding:12px 14px;color:#1a73e8;font-size:12px;word-break:break-all;text-align:left">${location.href}</div>
+      <button onclick="navigator.clipboard.writeText(location.href).then(()=>this.textContent='✓ Copied!').catch(()=>{})" style="background:#1a73e8;color:#fff;border:none;border-radius:10px;padding:13px 28px;font-size:15px;font-weight:500;cursor:pointer">Copy Link</button>
+    </div>
+  `);
+}
+
+// Check permission state upfront (Android Chrome + iOS Safari 16+)
+if (navigator.permissions) {
+  navigator.permissions.query({ name: 'geolocation' }).then(status => {
+    const showDenied = () => {
+      document.getElementById('lbl-gps').textContent = isAndroid
+        ? 'GPS denied — Chrome ⋮ → Settings → Site settings → Location'
+        : 'GPS denied — iOS Settings → Safari → Location → Allow';
+    };
+    if (status.state === 'denied') showDenied();
+    status.addEventListener('change', () => {
+      if (status.state === 'granted') {
+        document.getElementById('lbl-gps').textContent = 'GPS: ready';
+      } else if (status.state === 'denied') {
+        showDenied();
+      }
+    });
+  }).catch(() => {});
+}
+
 // ── Session ID ────────────────────────────────────────────────────────────
 function makeSessionId() {
   const d = new Date(), p = n => String(n).padStart(2,'0');
@@ -305,7 +343,15 @@ function startGPS() {
     document.getElementById('dot-gps').className   = 'status-dot gps-ok';
     document.getElementById('lbl-gps').textContent = 'GPS: locked';
   }, err => {
-    document.getElementById('lbl-gps').textContent = 'GPS: ' + err.message;
+    if (err.code === 1) {
+      document.getElementById('lbl-gps').textContent = isAndroid
+        ? 'GPS denied — Chrome ⋮ → Settings → Site settings → Location'
+        : isCriOS
+          ? 'GPS denied — iOS Settings → Chrome → Location → While Using'
+          : 'GPS denied — iOS Settings → Safari → Location → Allow';
+    } else {
+      document.getElementById('lbl-gps').textContent = 'GPS: ' + err.message;
+    }
   }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 });
 }
 
