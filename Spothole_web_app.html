@@ -370,17 +370,8 @@ function stopDetection() {
   document.getElementById('lbl-motion').textContent = 'Motion: stopped';
   // Flush remaining rows
   if (pendingRows.length) { clearTimeout(flushTimer); flushTimer = null; flushToSheet(); }
-  // Persist today's data then auto-export
+  // Persist today's data to localStorage
   persistToday();
-  const allDay = getAllDayData();
-  const geopts = allDay.filter(p => p.lat && p.lon);
-  if (allDay.length) {
-    setTimeout(() => exportCSV(), 100);
-    if (geopts.length) {
-      setTimeout(() => exportGPX(), 400);
-      setTimeout(() => exportKML(), 700);
-    }
-  }
 }
 
 function startGPS() {
