@@ -82,10 +82,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg
 .status-dot.motion-ok{background:#1D9E75}
 .status-dot.running{background:#E24B4A;animation:pulse .8s ease-in-out infinite alternate}
 @keyframes pulse{from{opacity:.5}to{opacity:1}}
-.card.flash-pothole{animation:potholeFlash 2s ease-out}
+.card.flash-pothole{animation:potholeFlash 3s ease-out}
 @keyframes potholeFlash{0%,10%{background:#F5A623}100%{background:var(--bg-card)}}
-.accel-bar-wrap{height:6px;background:var(--bg-metric);border-radius:3px;margin-top:6px;overflow:hidden}
-.accel-bar{height:100%;border-radius:3px;background:#E24B4A;transition:width .1s;width:0%}
+.accel-bar-wrap{position:relative;height:14px;background:linear-gradient(to right,#1D9E75,#F5A623,#E24B4A);border-radius:7px;margin-top:8px;overflow:hidden}
+.accel-bar{position:absolute;right:0;top:0;height:100%;border-radius:0 7px 7px 0;background:var(--bg-metric);transition:width .1s;width:100%}
 .count-badge{display:inline-block;background:#E24B4A;color:#fff;border-radius:10px;font-size:11px;font-weight:500;padding:1px 7px;margin-left:6px;vertical-align:middle}
 .sync-bar{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--border);flex-shrink:0}
@@ -216,6 +216,55 @@ if (navigator.permissions) {
   }).catch(() => {});
 }
 
+// ── Device label ──────────────────────────────────────────────────────────
+function getDeviceLabel() {
+  const ua = navigator.userAgent;
+  let device = 'Unknown';
+  if      (/iPad/.test(ua))    device = 'iPad';
+  else if (/iPhone/.test(ua))  device = 'iPhone';
+  else if (/Android/.test(ua)) {
+    const m = ua.match(/Android[^;]*;\s*([^)]+)\)/);
+    device = m ? m[1].trim() : 'Android';
+  } else if (/Macintosh/.test(ua)) device = 'Mac';
+  else if (/Windows/.test(ua))     device = 'Windows';
+  let browser = 'Browser';
+  if      (/CriOS/.test(ua))                          browser = 'Chrome iOS';
+  else if (/FxiOS/.test(ua))                          browser = 'Firefox iOS';
+  else if (/Safari/.test(ua) && !/Chrome/.test(ua))   browser = 'Safari';
+  else if (/Chrome/.test(ua))                         browser = 'Chrome';
+  else if (/Firefox/.test(ua))                        browser = 'Firefox';
+  return device + ' / ' + browser;
+}
+const DEVICE = getDeviceLabel();
+
+// ── Date key + daily persistence ─────────────────────────────────────────
+function getDateKey() {
+  const d = new Date();
+  return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function persistToday() {
+  // Merge current session potholes into today's localStorage entry
+  if (!potholes.length) return;
+  try {
+    const key = 'spothole_' + getDateKey();
+    const existing = JSON.parse(localStorage.getItem(key) || '[]');
+    const seen = new Set(existing.map(p => p.session_id + '|' + p.time));
+    const merged = [...existing, ...potholes.filter(p => !seen.has(p.session_id + '|' + p.time))];
+    localStorage.setItem(key, JSON.stringify(merged));
+  } catch(e) {}
+}
+
+function getAllDayData() {
+  // Today's persisted data merged with any unsaved current-session potholes
+  try {
+    const key = 'spothole_' + getDateKey();
+    const stored = JSON.parse(localStorage.getItem(key) || '[]');
+    const seen = new Set(stored.map(p => p.session_id + '|' + p.time));
+    return [...stored, ...potholes.filter(p => !seen.has(p.session_id + '|' + p.time))];
+  } catch(e) { return potholes; }
+}
+
 // ── Session ID ────────────────────────────────────────────────────────────
 function makeSessionId() {
   const d = new Date(), p = n => String(n).padStart(2,'0');
@@ -262,9 +311,10 @@ async function flushToSheet() {
       mode: 'no-cors',  // avoids CORS preflight; works on iOS Safari
       body: JSON.stringify({
         secret: SECRET,
+        sheetName: getDateKey() + '_SpotholeData',
         rows: rows.map(p => [
           p.session_id, p.time, p.lat ?? '', p.lon ?? '',
-          p.speed_mph, p.heading_deg ?? '', p.heading_compass, p.z_accel_g, p.type
+          p.speed_mph, p.heading_deg ?? '', p.heading_compass, p.z_accel_g, p.type, p.device ?? ''
         ])
       })
     });
@@ -320,9 +370,11 @@ function stopDetection() {
   document.getElementById('lbl-motion').textContent = 'Motion: stopped';
   // Flush remaining rows
   if (pendingRows.length) { clearTimeout(flushTimer); flushTimer = null; flushToSheet(); }
-  // Auto-export files
-  const geopts = potholes.filter(p => p.lat && p.lon);
-  if (potholes.length) {
+  // Persist today's data then auto-export
+  persistToday();
+  const allDay = getAllDayData();
+  const geopts = allDay.filter(p => p.lat && p.lon);
+  if (allDay.length) {
     setTimeout(() => exportCSV(), 100);
     if (geopts.length) {
       setTimeout(() => exportGPX(), 400);
@@ -382,7 +434,7 @@ function attachMotionHandler() {
     const z = ag.z != null ? ag.z / 9.81 : 0;
     lastZ = Math.abs(z);
     document.getElementById('zval').textContent = lastZ.toFixed(2);
-    document.getElementById('accel-bar').style.width = Math.min(100, (lastZ / 5) * 100) + '%';
+    document.getElementById('accel-bar').style.width = Math.max(0, 100 - Math.min(100, (lastZ / threshold) * 100)) + '%';
     if (lastZ > threshold && running && !cooldown && lastGPS) triggerDetection('auto');
     document.getElementById('dot-motion').className   = 'status-dot motion-ok';
     document.getElementById('lbl-motion').textContent = 'Motion: active';
@@ -404,7 +456,8 @@ function triggerDetection(type) {
     heading_deg:     c && c.heading != null ? Math.round(c.heading) : null,
     heading_compass: c && c.heading != null ? degToCompass(c.heading) : '—',
     z_accel_g:       parseFloat(lastZ.toFixed(3)),
-    type
+    type,
+    device:          DEVICE
   };
   potholes.push(entry);
   pendingRows.push(entry);
@@ -449,29 +502,35 @@ function addLogItem(e) {
 
 // ── Export ────────────────────────────────────────────────────────────────
 function exportCSV() {
-  if (!potholes.length) { alert('No potholes logged yet.'); return; }
-  const hdr  = 'session_id,time,latitude,longitude,speed_mph,heading_deg,heading_compass,z_accel_g,type\n';
-  const rows = potholes.map(p =>
-    `${p.session_id},${p.time},${p.lat??''},${p.lon??''},${p.speed_mph},${p.heading_deg??''},${p.heading_compass},${p.z_accel_g},${p.type}`
+  persistToday();
+  const data = getAllDayData();
+  if (!data.length) { alert('No potholes logged yet.'); return; }
+  const hdr  = 'session_id,time,latitude,longitude,speed_mph,heading_deg,heading_compass,z_accel_g,type,device\n';
+  const rows = data.map(p =>
+    `${p.session_id},${p.time},${p.lat??''},${p.lon??''},${p.speed_mph},${p.heading_deg??''},${p.heading_compass},${p.z_accel_g},${p.type},"${p.device??''}"`
   ).join('\n');
-  download(`SpotHole_${SESSION_ID}.csv`, hdr + rows, 'text/csv');
+  download(`${getDateKey()}_SpotholeData.csv`, hdr + rows, 'text/csv');
 }
 
 function exportGPX() {
-  if (!potholes.length) { alert('No potholes logged yet.'); return; }
-  const pts = potholes.filter(p=>p.lat&&p.lon).map(p=>
-    `  <wpt lat="${p.lat}" lon="${p.lon}"><time>${p.time}</time><name>${p.type} ${p.z_accel_g}g</name><desc>Session: ${p.session_id}, Speed: ${p.speed_mph} mph, Heading: ${p.heading_compass}, Z: ${p.z_accel_g}g</desc></wpt>`
+  persistToday();
+  const data = getAllDayData();
+  if (!data.length) { alert('No potholes logged yet.'); return; }
+  const pts = data.filter(p=>p.lat&&p.lon).map(p=>
+    `  <wpt lat="${p.lat}" lon="${p.lon}"><time>${p.time}</time><name>${p.type} ${p.z_accel_g}g</name><desc>Session: ${p.session_id}, Speed: ${p.speed_mph} mph, Heading: ${p.heading_compass}, Z: ${p.z_accel_g}g, Device: ${p.device??''}</desc></wpt>`
   ).join('\n');
-  download(`SpotHole_${SESSION_ID}.gpx`, `<?xml version="1.0"?>\n<gpx version="1.1" creator="Spot Hole">\n${pts}\n</gpx>`, 'application/gpx+xml');
+  download(`${getDateKey()}_SpotholeData.gpx`, `<?xml version="1.0"?>\n<gpx version="1.1" creator="Spot Hole">\n${pts}\n</gpx>`, 'application/gpx+xml');
 }
 
 function exportKML() {
-  if (!potholes.length) { alert('No potholes logged yet.'); return; }
-  const placemarks = potholes.filter(p=>p.lat&&p.lon).map(p => {
+  persistToday();
+  const data = getAllDayData();
+  if (!data.length) { alert('No potholes logged yet.'); return; }
+  const placemarks = data.filter(p=>p.lat&&p.lon).map(p => {
     const color = p.type === 'auto' ? 'ff0000ff' : 'ffff0000'; // KML AABBGGRR: red=auto, blue=manual
     return `  <Placemark>
     <name>${p.type === 'auto' ? '🔴' : '🔵'} ${p.z_accel_g}g</name>
-    <description>Time: ${p.time}&#10;Type: ${p.type}&#10;Speed: ${p.speed_mph} mph&#10;Heading: ${p.heading_compass}&#10;Z-accel: ${p.z_accel_g}g&#10;Session: ${p.session_id}</description>
+    <description>Time: ${p.time}&#10;Type: ${p.type}&#10;Speed: ${p.speed_mph} mph&#10;Heading: ${p.heading_compass}&#10;Z-accel: ${p.z_accel_g}g&#10;Session: ${p.session_id}&#10;Device: ${p.device??''}</description>
     <Style><IconStyle><color>${color}</color></IconStyle></Style>
     <Point><coordinates>${p.lon},${p.lat},0</coordinates></Point>
   </Placemark>`;
@@ -479,11 +538,11 @@ function exportKML() {
   const kml = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
 <Document>
-  <name>Spot Hole ${SESSION_ID}</name>
+  <name>Spot Hole ${getDateKey()}</name>
 ${placemarks}
 </Document>
 </kml>`;
-  download(`SpotHole_${SESSION_ID}.kml`, kml, 'application/vnd.google-earth.kml+xml');
+  download(`${getDateKey()}_SpotholeData.kml`, kml, 'application/vnd.google-earth.kml+xml');
 }
 
 function openInGoogleMaps() {
@@ -510,9 +569,11 @@ function download(name, content, type) {
 }
 
 function clearLog() {
-  if (!potholes.length) return;
-  if (!confirm('Clear all ' + potholes.length + ' logged potholes?')) return;
+  const total = getAllDayData().length;
+  if (!total) return;
+  if (!confirm('Clear all ' + total + " today's potholes (current session + saved)?")) return;
   potholes = [];
+  try { localStorage.removeItem('spothole_' + getDateKey()); } catch(e) {}
   document.getElementById('log').innerHTML = '<div class="log-empty" id="log-empty">No potholes logged yet. Start detection and drive!</div>';
   document.getElementById('count').textContent = '0';
 }

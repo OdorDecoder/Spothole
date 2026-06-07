@@ -21,23 +21,32 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
-    const ss    = SpreadsheetApp.openById(SHEET_ID);
-    const sheet = ss.getSheets()[0];
+    const ss        = SpreadsheetApp.openById(SHEET_ID);
+    const sheetName = payload.sheetName || getTodayName();
 
-    // Write header if sheet is empty
-    if (sheet.getLastRow() === 0) {
-      sheet.appendRow([
-        'session_id','time','latitude','longitude',
-        'speed_mph','heading_deg','heading_compass','z_accel_g','type'
-      ]);
+    // Lock so two simultaneous first-writes don't both create the tab + header
+    const lock = LockService.getScriptLock();
+    lock.tryLock(10000);
+    let sheet;
+    try {
+      sheet = ss.getSheetByName(sheetName);
+      if (!sheet) {
+        sheet = ss.insertSheet(sheetName);
+        sheet.appendRow([
+          'session_id','time','latitude','longitude',
+          'speed_mph','heading_deg','heading_compass','z_accel_g','type','device'
+        ]);
+      }
+    } finally {
+      lock.releaseLock();
     }
 
-    // Append each row
+    // Append rows (appendRow is safe for concurrent callers — no overwrites)
     const rows = payload.rows || [];
     rows.forEach(row => sheet.appendRow(row));
 
     return ContentService
-      .createTextOutput(JSON.stringify({ ok: true, appended: rows.length }))
+      .createTextOutput(JSON.stringify({ ok: true, sheet: sheetName, appended: rows.length }))
       .setMimeType(ContentService.MimeType.JSON);
 
   } catch (err) {
@@ -45,6 +54,11 @@ function doPost(e) {
       .createTextOutput(JSON.stringify({ error: err.toString() }))
       .setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+function getTodayName() {
+  const d = new Date();
+  return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_SpotholeData`;
 }
 
 // ── Test this script manually ─────────────────────────────────────────────
@@ -55,9 +69,10 @@ function testPost() {
     postData: {
       contents: JSON.stringify({
         secret: SECRET,
+        sheetName: getTodayName(),
         rows: [
           ['test_session','2024-01-01T00:00:00Z',40.7128,-74.0060,
-           25.5,180,'S',0.05,'spot_check']
+           25.5,180,'S',0.05,'spot_check','Test / Script']
         ]
       })
     }
