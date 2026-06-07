@@ -169,6 +169,7 @@ let cooldown = false, markCooldown = false;
 let tokenClient = null, driveToken = null;
 let sheetId = localStorage.getItem(SHEET_KEY) || null;
 let pendingRows = [], flushTimer = null, totalSynced = 0;
+let motionPermissionGranted = false, spotCheckSent = false;
 
 const headings = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
 
@@ -181,7 +182,7 @@ function initAuth() {
       if (resp.error) { setSyncStatus('err', 'Auth error: ' + resp.error); return; }
       driveToken = resp.access_token;
       localStorage.setItem(SCOPE_KEY, '1');
-      if (pendingRows.length) flushToSheet();
+      sendSpotCheck();
     }
   });
 }
@@ -301,14 +302,9 @@ function startDetection() {
   document.getElementById('btn-start').style.display = 'none';
   document.getElementById('btn-stop').style.display  = '';
   document.getElementById('btn-mark').disabled = false;
-  updateStatus(); startGPS(); startMotion();
+  updateStatus(); startGPS();
   if (sheetId) showSheetLink();
-  // Request auth now while we have a user gesture — iOS blocks popups from timers
-  if (!driveToken && tokenClient) {
-    const scopeOk = localStorage.getItem(SCOPE_KEY);
-    setSyncStatus('busy', 'Authorizing Google Sheets…');
-    tokenClient.requestAccessToken({ prompt: scopeOk ? '' : 'consent' });
-  }
+  requestMotionThenAuth();
 }
 
 function stopDetection() {
@@ -342,31 +338,78 @@ function startGPS() {
   }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 });
 }
 
-function startMotion() {
+function attachMotionHandler() {
+  if (motionHandler) return;
+  motionHandler = e => {
+    const ag = (e.acceleration && e.acceleration.z != null) ? e.acceleration : e.accelerationIncludingGravity;
+    if (!ag) return;
+    const z = ag.z != null ? ag.z / 9.81 : 0;
+    lastZ = Math.abs(z);
+    document.getElementById('zval').textContent = lastZ.toFixed(2);
+    document.getElementById('accel-bar').style.width = Math.min(100, (lastZ / 5) * 100) + '%';
+    if (lastZ > threshold && running && !cooldown && lastGPS) triggerDetection('auto');
+    document.getElementById('dot-motion').className   = 'status-dot motion-ok';
+    document.getElementById('lbl-motion').textContent = 'Motion: active';
+  };
+  window.addEventListener('devicemotion', motionHandler);
+}
+
+function requestMotionThenAuth() {
   if (typeof DeviceMotionEvent === 'undefined') {
-    document.getElementById('lbl-motion').textContent = 'Motion: not supported'; return;
+    document.getElementById('lbl-motion').textContent = 'Motion: not supported';
+    requestGoogleAuth();
+    return;
   }
-  function requestAndStart() {
-    motionHandler = e => {
-      const ag = (e.acceleration && e.acceleration.z != null) ? e.acceleration : e.accelerationIncludingGravity;
-      if (!ag) return;
-      const z = ag.z != null ? ag.z / 9.81 : 0;
-      lastZ = Math.abs(z);
-      document.getElementById('zval').textContent = lastZ.toFixed(2);
-      document.getElementById('accel-bar').style.width = Math.min(100, (lastZ / 5) * 100) + '%';
-      if (lastZ > threshold && running && !cooldown && lastGPS) triggerDetection('auto');
-      document.getElementById('dot-motion').className   = 'status-dot motion-ok';
-      document.getElementById('lbl-motion').textContent = 'Motion: active';
-    };
-    window.addEventListener('devicemotion', motionHandler);
+  if (motionPermissionGranted) {
+    attachMotionHandler();
+    requestGoogleAuth();
+    return;
   }
   if (typeof DeviceMotionEvent.requestPermission === 'function') {
     DeviceMotionEvent.requestPermission()
-      .then(s => s === 'granted' ? requestAndStart() : (document.getElementById('lbl-motion').textContent = 'Motion: denied'))
-      .catch(() => document.getElementById('lbl-motion').textContent = 'Motion: error');
+      .then(s => {
+        if (s === 'granted') { motionPermissionGranted = true; attachMotionHandler(); }
+        else document.getElementById('lbl-motion').textContent = 'Motion: denied';
+        requestGoogleAuth();
+      })
+      .catch(() => {
+        document.getElementById('lbl-motion').textContent = 'Motion: error';
+        requestGoogleAuth();
+      });
   } else {
-    requestAndStart();
+    motionPermissionGranted = true;
+    attachMotionHandler();
+    requestGoogleAuth();
   }
+}
+
+function requestGoogleAuth() {
+  if (!tokenClient) return;
+  if (driveToken) { sendSpotCheck(); return; }
+  const scopeOk = localStorage.getItem(SCOPE_KEY);
+  setSyncStatus('busy', 'Authorizing Google Sheets…');
+  tokenClient.requestAccessToken({ prompt: scopeOk ? '' : 'consent' });
+}
+
+function sendSpotCheck() {
+  if (spotCheckSent) {
+    if (pendingRows.length) flushToSheet();
+    return;
+  }
+  spotCheckSent = true;
+  const c = lastGPS ? lastGPS.coords : null;
+  pendingRows.unshift({
+    session_id:      SESSION_ID,
+    time:            new Date().toISOString(),
+    lat:             c ? c.latitude  : null,
+    lon:             c ? c.longitude : null,
+    speed_mph:       0,
+    heading_deg:     null,
+    heading_compass: '—',
+    z_accel_g:       0,
+    type:            'spot_check'
+  });
+  flushToSheet();
 }
 
 // ── Detection ─────────────────────────────────────────────────────────────
