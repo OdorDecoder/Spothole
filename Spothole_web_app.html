@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Spot Hole</title>
-<script src="https://accounts.google.com/gsi/client" async defer onload="initAuth()"></script>
 </head>
 <style>
 :root {
@@ -62,6 +61,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg
 .btn-mark:hover{background:#D4881A}
 .btn-mark.active{background:#1D9E75;transform:scale(0.97)}
 .btn-mark:disabled{background:var(--border-2);cursor:default;transform:none;box-shadow:none}
+.btn-maps{background:#1a73e8;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:500;padding:11px;cursor:pointer;width:100%;margin-top:8px}
+.btn-maps:hover{background:#1557b0}
 .log{max-height:220px;overflow-y:auto}
 .log-empty{font-size:13px;color:var(--text-3);text-align:center;padding:20px 0}
 .log-item{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
@@ -92,11 +93,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg
 .sync-dot.busy{background:#F5A623;animation:pulse .6s ease-in-out infinite alternate}
 .sync-dot.err{background:#E24B4A}
 .sync-label{font-size:12px;color:var(--text-2);flex:1}
-.sync-link{font-size:12px;color:#1a73e8;text-decoration:none}
+.sync-link{font-size:12px;color:#1a73e8;text-decoration:none;flex-shrink:0}
 .sync-link:hover{text-decoration:underline}
-.btn-auth{background:#1a73e8;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:500;padding:5px 10px;cursor:pointer;flex-shrink:0}
-.btn-maps{background:#1a73e8;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:500;padding:11px;cursor:pointer;width:100%;margin-top:8px}
-.btn-maps:hover{background:#1557b0}
 .session-id{font-size:11px;color:var(--text-3);text-align:center;padding:4px 0}
 </style>
 
@@ -167,8 +165,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg
     <button class="btn-maps" onclick="openInGoogleMaps()">&#128506; Open in Google Maps</button>
     <div class="sync-bar">
       <span class="sync-dot" id="sync-dot"></span>
-      <span class="sync-label" id="sync-label">Sheet sync: waiting for first pothole</span>
-      <button class="btn-auth" id="btn-auth" onclick="requestGoogleAuth()" style="display:none">Authorize Sheets</button>
+      <span class="sync-label" id="sync-label">Sheet sync: ready</span>
       <a class="sync-link" id="sheet-link" href="#" target="_blank" style="display:none">Open Sheet &#8599;</a>
     </div>
   </div>
@@ -176,12 +173,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg
 </div>
 
 <script>
-// ── Config ────────────────────────────────────────────────────────────────
-const CLIENT_ID  = '1013270395668-1ml6724admil6somlelnov3jj28j0b3m.apps.googleusercontent.com';
-const FOLDER_ID  = '1jlOcsQosXcHbCAL6H7ZubPRAPB1FIJ8W';
-const SCOPE      = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets';
-const SHEET_KEY  = 'pw_sheet_id';
-const SCOPE_KEY  = 'pw_scope_ok';
+// ── Config — fill these in after deploying the Apps Script ────────────────
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw-SPX3KVc-UqPVS5IJx_GSkGOYcSt3GqY3xMOb45qVWKQS5NYSZHNj46P5ahjuSZhAuw/exec';
+const SHEET_URL  = 'https://docs.google.com/spreadsheets/d/1BXHayOuxIZd7H8Oqq5NRRxiFq90teX0k2pdfX1N_wmU/edit';
+const SECRET     = 'spotholekey';          // must match the Apps Script
 
 // ── Session ID ────────────────────────────────────────────────────────────
 function makeSessionId() {
@@ -191,95 +186,21 @@ function makeSessionId() {
 const SESSION_ID = makeSessionId();
 document.getElementById('session-display').textContent = 'Session: ' + SESSION_ID;
 
+// Show sheet link if configured
+if (SHEET_URL && !SHEET_URL.startsWith('YOUR')) {
+  const lnk = document.getElementById('sheet-link');
+  lnk.href = SHEET_URL;
+  lnk.style.display = '';
+}
+
 // ── State ─────────────────────────────────────────────────────────────────
 let running = false, gpsWatchId = null, motionHandler = null;
-let lastGPS = null, potholes = [], threshold = 2.0, lastZ = 0;
+let lastGPS = null, potholes = [], threshold = 1.0, lastZ = 0;
 let cooldown = false, markCooldown = false;
-let tokenClient = null, driveToken = null;
-let sheetId = localStorage.getItem(SHEET_KEY) || null;
 let pendingRows = [], flushTimer = null, totalSynced = 0;
-let motionPermissionGranted = false, spotCheckSent = false;
+let motionPermissionGranted = false;
 
 const headings = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
-
-// ── Auth ──────────────────────────────────────────────────────────────────
-function initAuth() {
-  tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: CLIENT_ID,
-    scope: SCOPE,
-    callback: (resp) => {
-      if (resp.error) { setSyncStatus('err', 'Auth error: ' + resp.error); return; }
-      driveToken = resp.access_token;
-      localStorage.setItem(SCOPE_KEY, '1');
-      sendSpotCheck(); // sends spot_check row then flushes all pending
-    }
-  });
-}
-
-// ── Sheet helpers ─────────────────────────────────────────────────────────
-async function ensureSheet() {
-  if (sheetId) return;
-
-  // Create spreadsheet in AI folder via Drive API
-  const res = await authFetch('https://www.googleapis.com/drive/v3/files', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name: 'PotholeWatch Data',
-      mimeType: 'application/vnd.google-apps.spreadsheet',
-      parents: [FOLDER_ID]
-    })
-  });
-  if (!res.ok) throw new Error('Create sheet: HTTP ' + res.status);
-  const data = await res.json();
-  sheetId = data.id;
-  localStorage.setItem(SHEET_KEY, sheetId);
-
-  // Write header row
-  await sheetsAppend([['session_id','time','latitude','longitude','speed_mph','heading_deg','heading_compass','z_accel_g','type']]);
-
-  // Show link
-  showSheetLink();
-}
-
-async function sheetsAppend(rows) {
-  const res = await authFetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/A1:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ values: rows })
-    }
-  );
-  if (res.status === 404) {
-    // Sheet was deleted — recreate next flush
-    sheetId = null; localStorage.removeItem(SHEET_KEY);
-    throw new Error('Sheet not found, will recreate');
-  }
-  if (!res.ok) throw new Error('Sheets API: HTTP ' + res.status);
-}
-
-async function authFetch(url, opts) {
-  const res = await fetch(url, {
-    ...opts,
-    headers: { ...opts.headers, Authorization: 'Bearer ' + driveToken }
-  });
-  if (res.status === 401) { driveToken = null; throw new Error('401'); }
-  if (res.status === 403) {
-    let reason = '';
-    try { const j = await res.clone().json(); reason = j.error?.errors?.[0]?.reason || ''; } catch(e) {}
-    if (reason === 'accessNotConfigured') throw new Error('API_NOT_ENABLED');
-    driveToken = null; localStorage.removeItem(SCOPE_KEY); throw new Error('403');
-  }
-  return res;
-}
-
-function showSheetLink() {
-  if (!sheetId) return;
-  const link = document.getElementById('sheet-link');
-  link.href = `https://docs.google.com/spreadsheets/d/${sheetId}/edit`;
-  link.style.display = '';
-}
 
 // ── Sync ──────────────────────────────────────────────────────────────────
 function scheduleFlush() {
@@ -289,35 +210,32 @@ function scheduleFlush() {
 
 async function flushToSheet() {
   if (!pendingRows.length) return;
-
-  if (!driveToken) {
-    tokenClient.requestAccessToken({ prompt: sheetId ? '' : 'consent' });
-    return; // callback will re-trigger flushToSheet
+  if (!SCRIPT_URL || SCRIPT_URL.startsWith('YOUR')) {
+    setSyncStatus('', 'Sheet sync: not configured');
+    return;
   }
 
-  const rows = pendingRows.splice(0); // drain
-  setSyncStatus('busy', 'Syncing ' + rows.length + ' row(s)...');
+  const rows = pendingRows.splice(0);
+  setSyncStatus('busy', 'Syncing ' + rows.length + ' row(s)…');
 
   try {
-    await ensureSheet();
-    await sheetsAppend(rows.map(p => [
-      p.session_id, p.time, p.lat ?? '', p.lon ?? '',
-      p.speed_mph, p.heading_deg ?? '', p.heading_compass, p.z_accel_g, p.type
-    ]));
+    await fetch(SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',  // avoids CORS preflight; works on iOS Safari
+      body: JSON.stringify({
+        secret: SECRET,
+        rows: rows.map(p => [
+          p.session_id, p.time, p.lat ?? '', p.lon ?? '',
+          p.speed_mph, p.heading_deg ?? '', p.heading_compass, p.z_accel_g, p.type
+        ])
+      })
+    });
     totalSynced += rows.length;
     setSyncStatus('ok', `Synced · ${totalSynced} rows · ${new Date().toLocaleTimeString()}`);
-    showSheetLink();
-  } catch (err) {
-    pendingRows.unshift(...rows); // put back
-    if (err.message === 'API_NOT_ENABLED') {
-      setSyncStatus('err', 'Enable Google Sheets API in Cloud Console → APIs & Services → Library');
-    } else if (err.message === '401' || err.message === '403') {
-      setSyncStatus('err', 'Auth expired — tap Stop then Start to re-authorize');
-    } else {
-      setSyncStatus('err', 'Sync failed: ' + err.message);
-      // retry in 30s
-      setTimeout(() => { if (pendingRows.length) flushToSheet(); }, 30000);
-    }
+  } catch(err) {
+    pendingRows.unshift(...rows);
+    setSyncStatus('err', 'Sync failed — will retry in 30s');
+    setTimeout(() => { if (pendingRows.length) flushToSheet(); }, 30000);
   }
 }
 
@@ -339,16 +257,15 @@ function updateStatus() {
   document.getElementById('lbl-running').textContent = running ? 'Detecting' : 'Stopped';
 }
 
+// ── Detection flow ─────────────────────────────────────────────────────────
 function startDetection() {
   running = true;
   document.getElementById('btn-start').style.display = 'none';
   document.getElementById('btn-stop').style.display  = '';
   document.getElementById('btn-mark').disabled = false;
-  updateStatus(); startGPS();
-  if (sheetId) showSheetLink();
-  // Step 1: motion permission first (iOS needs user gesture)
-  // Step 2: Google auth after, preserving the gesture context via promise chain
-  requestMotionThenAuth();
+  updateStatus();
+  startGPS();
+  requestMotion();
 }
 
 function stopDetection() {
@@ -363,9 +280,9 @@ function stopDetection() {
   document.getElementById('lbl-gps').textContent    = 'GPS: stopped';
   document.getElementById('dot-motion').className   = 'status-dot';
   document.getElementById('lbl-motion').textContent = 'Motion: stopped';
-  // Flush any remaining rows immediately on stop
+  // Flush remaining rows
   if (pendingRows.length) { clearTimeout(flushTimer); flushTimer = null; flushToSheet(); }
-  // Auto-export all formats
+  // Auto-export files
   const geopts = potholes.filter(p => p.lat && p.lon);
   if (potholes.length) {
     setTimeout(() => exportCSV(), 100);
@@ -392,6 +309,25 @@ function startGPS() {
   }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 });
 }
 
+function requestMotion() {
+  if (typeof DeviceMotionEvent === 'undefined') {
+    document.getElementById('lbl-motion').textContent = 'Motion: not supported';
+    return;
+  }
+  if (motionPermissionGranted) { attachMotionHandler(); return; }
+  if (typeof DeviceMotionEvent.requestPermission === 'function') {
+    DeviceMotionEvent.requestPermission()
+      .then(s => {
+        if (s === 'granted') { motionPermissionGranted = true; attachMotionHandler(); }
+        else document.getElementById('lbl-motion').textContent = 'Motion: denied';
+      })
+      .catch(() => { document.getElementById('lbl-motion').textContent = 'Motion: error'; });
+  } else {
+    motionPermissionGranted = true;
+    attachMotionHandler();
+  }
+}
+
 function attachMotionHandler() {
   if (motionHandler) return;
   motionHandler = e => {
@@ -406,81 +342,6 @@ function attachMotionHandler() {
     document.getElementById('lbl-motion').textContent = 'Motion: active';
   };
   window.addEventListener('devicemotion', motionHandler);
-}
-
-function requestMotionThenAuth() {
-  if (typeof DeviceMotionEvent === 'undefined') {
-    document.getElementById('lbl-motion').textContent = 'Motion: not supported';
-    afterMotion();
-    return;
-  }
-  if (motionPermissionGranted) {
-    attachMotionHandler();
-    afterMotion();
-    return;
-  }
-  if (typeof DeviceMotionEvent.requestPermission === 'function') {
-    DeviceMotionEvent.requestPermission()
-      .then(s => {
-        if (s === 'granted') { motionPermissionGranted = true; attachMotionHandler(); }
-        else document.getElementById('lbl-motion').textContent = 'Motion: denied';
-        afterMotion();
-      })
-      .catch(() => {
-        document.getElementById('lbl-motion').textContent = 'Motion: error';
-        afterMotion();
-      });
-  } else {
-    motionPermissionGranted = true;
-    attachMotionHandler();
-    afterMotion();
-  }
-}
-
-function afterMotion() {
-  if (!tokenClient) return;
-  if (driveToken) { sendSpotCheck(); return; }
-  const scopeOk = localStorage.getItem(SCOPE_KEY);
-  if (scopeOk) {
-    // Returning user — silent re-auth, no popup needed
-    setSyncStatus('busy', 'Connecting to Sheets…');
-    tokenClient.requestAccessToken({ prompt: '' });
-  } else {
-    // First time — show button so user taps directly (iOS needs clean gesture for consent popup)
-    document.getElementById('btn-auth').style.display = '';
-    setSyncStatus('', 'Tap Authorize to connect Google Sheets');
-  }
-}
-
-function requestGoogleAuth() {
-  // Called by direct button tap — safe user gesture for iOS consent popup
-  document.getElementById('btn-auth').style.display = 'none';
-  if (!tokenClient || driveToken) { if (driveToken) sendSpotCheck(); return; }
-  setSyncStatus('busy', 'Authorizing…');
-  tokenClient.requestAccessToken({ prompt: 'consent' });
-}
-
-function sendSpotCheck() {
-  if (spotCheckSent) {
-    // Not first auth — just flush any queued real rows
-    if (pendingRows.length) flushToSheet();
-    return;
-  }
-  spotCheckSent = true;
-  const c = lastGPS ? lastGPS.coords : null;
-  // Prepend spot_check row — not shown in UI log, filter by type='spot_check' to exclude
-  pendingRows.unshift({
-    session_id:      SESSION_ID,
-    time:            new Date().toISOString(),
-    lat:             c ? c.latitude  : null,
-    lon:             c ? c.longitude : null,
-    speed_mph:       0,
-    heading_deg:     null,
-    heading_compass: '—',
-    z_accel_g:       0,
-    type:            'spot_check'
-  });
-  flushToSheet(); // send immediately, don't wait 10s
 }
 
 // ── Detection ─────────────────────────────────────────────────────────────
@@ -507,7 +368,7 @@ function triggerDetection(type) {
   void sc.offsetWidth;
   sc.classList.add('flash-pothole');
   document.getElementById('count').textContent = potholes.length;
-  setSyncStatus('busy', 'Syncing in ' + (flushTimer ? '~10s' : '10s') + '…');
+  setSyncStatus('busy', 'Syncing in ~10s…');
   scheduleFlush();
 }
 
@@ -561,7 +422,7 @@ function exportGPX() {
 function exportKML() {
   if (!potholes.length) { alert('No potholes logged yet.'); return; }
   const placemarks = potholes.filter(p=>p.lat&&p.lon).map(p => {
-    const color = p.type === 'auto' ? 'ff0000ff' : 'ffff0000'; // red=auto, blue=manual (KML AABBGGRR)
+    const color = p.type === 'auto' ? 'ff0000ff' : 'ffff0000'; // KML AABBGGRR: red=auto, blue=manual
     return `  <Placemark>
     <name>${p.type === 'auto' ? '🔴' : '🔵'} ${p.z_accel_g}g</name>
     <description>Time: ${p.time}&#10;Type: ${p.type}&#10;Speed: ${p.speed_mph} mph&#10;Heading: ${p.heading_compass}&#10;Z-accel: ${p.z_accel_g}g&#10;Session: ${p.session_id}</description>
@@ -586,8 +447,8 @@ function openInGoogleMaps() {
   if (pts.length === 1) {
     url = `https://www.google.com/maps/search/?api=1&query=${pts[0].lat},${pts[0].lon}`;
   } else {
-    const MAX = 10;
-    const shown = pts.slice(0, MAX);
+    const MAX    = 10;
+    const shown  = pts.slice(0, MAX);
     const origin = `${shown[0].lat},${shown[0].lon}`;
     const dest   = `${shown[shown.length-1].lat},${shown[shown.length-1].lon}`;
     const wpts   = shown.slice(1,-1).map(p=>`${p.lat},${p.lon}`).join('|');
