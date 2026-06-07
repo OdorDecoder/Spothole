@@ -7,25 +7,48 @@
 <script src="https://accounts.google.com/gsi/client" async defer onload="initAuth()"></script>
 </head>
 <style>
+:root {
+  color-scheme: light dark;
+  --bg: #f2f2f7;
+  --bg-card: #ffffff;
+  --bg-metric: #f2f2f7;
+  --text: #000000;
+  --text-2: #6e6e73;
+  --text-3: #aeaeb2;
+  --border: #c6c6c8;
+  --border-2: #d1d1d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000;
+    --bg-card: #1c1c1e;
+    --bg-metric: #2c2c2e;
+    --text: #ffffff;
+    --text-2: #aeaeb2;
+    --text-3: #636366;
+    --border: #38383a;
+    --border-2: #48484a;
+  }
+}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--font-sans,sans-serif);background:var(--color-background-tertiary);color:var(--color-text-primary);min-height:100vh}
-.header{background:var(--color-background-secondary);border-bottom:1px solid var(--color-border-tertiary);padding:12px 16px;display:flex;align-items:center;gap:10px}
+body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.header{background:var(--bg-card);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:10px}
 .logo{width:32px;height:32px;background:#E24B4A;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .main{padding:12px;display:flex;flex-direction:column;gap:12px;max-width:600px;margin:0 auto}
-.card{background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary);border-radius:12px;padding:14px}
-.card-title{font-size:12px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px}
+.card-title{font-size:12px;font-weight:500;color:var(--text-2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
 .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.metric{background:var(--color-background-tertiary);border-radius:8px;padding:10px;text-align:center}
-.metric-val{font-size:20px;font-weight:500;color:var(--color-text-primary);line-height:1.2}
-.metric-lbl{font-size:11px;color:var(--color-text-secondary);margin-top:2px}
+.metric{background:var(--bg-metric);border-radius:8px;padding:10px;text-align:center}
+.metric-val{font-size:20px;font-weight:500;color:var(--text);line-height:1.2}
+.metric-lbl{font-size:11px;color:var(--text-2);margin-top:2px}
 .sensor-row{display:flex;gap:8px;margin-bottom:8px}
-.sensor-box{flex:1;background:var(--color-background-tertiary);border-radius:8px;padding:8px 10px}
-.sensor-lbl{font-size:11px;color:var(--color-text-secondary)}
+.sensor-box{flex:1;background:var(--bg-metric);border-radius:8px;padding:8px 10px}
+.sensor-lbl{font-size:11px;color:var(--text-2)}
 .sensor-val{font-size:14px;font-weight:500;margin-top:2px}
 .threshold-row{display:flex;flex-direction:column;gap:0;margin-top:8px}
 .threshold-row input[type=range]{width:100%;accent-color:#E24B4A}
 .threshold-labels{display:flex;justify-content:space-between;align-items:center;margin-top:4px}
-.threshold-labels label{font-size:12px;color:var(--color-text-secondary)}
+.threshold-labels label{font-size:12px;color:var(--text-2)}
 .thresh-val{font-size:12px;font-weight:500}
 .btn-row{display:flex;gap:8px}
 .btn{flex:1;padding:12px;border:none;border-radius:10px;font-size:15px;font-weight:500;cursor:pointer;transition:all .15s}
@@ -33,46 +56,46 @@ body{font-family:var(--font-sans,sans-serif);background:var(--color-background-t
 .btn-start:hover{background:#0F6E56}
 .btn-stop{background:#E24B4A;color:#fff}
 .btn-stop:hover{background:#A32D2D}
-.btn-export{background:var(--color-background-tertiary);border:1px solid var(--color-border-secondary);color:var(--color-text-primary);font-size:13px;padding:10px 8px}
-.btn-export:hover{border-color:var(--color-border-primary)}
+.btn-export{background:var(--bg-metric);border:1px solid var(--border-2);color:var(--text);font-size:13px;padding:10px 8px}
+.btn-export:hover{border-color:var(--border)}
 .btn-mark{background:#F5A623;color:#fff;font-size:22px;font-weight:700;padding:22px 16px;border:none;border-radius:14px;cursor:pointer;transition:all .15s;width:100%;letter-spacing:.02em;box-shadow:0 4px 12px rgba(245,166,35,.35)}
 .btn-mark:hover{background:#D4881A}
 .btn-mark.active{background:#1D9E75;transform:scale(0.97)}
-.btn-mark:disabled{background:var(--color-border-secondary);cursor:default;transform:none;box-shadow:none}
+.btn-mark:disabled{background:var(--border-2);cursor:default;transform:none;box-shadow:none}
 .log{max-height:220px;overflow-y:auto}
-.log-empty{font-size:13px;color:var(--color-text-tertiary);text-align:center;padding:20px 0}
-.log-item{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--color-border-tertiary)}
+.log-empty{font-size:13px;color:var(--text-3);text-align:center;padding:20px 0}
+.log-item{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
 .log-item:last-child{border-bottom:none}
 .log-dot{width:8px;height:8px;border-radius:50%;margin-top:4px;flex-shrink:0}
 .dot-auto{background:#E24B4A}
 .dot-manual{background:#378ADD}
 .log-info{flex:1;min-width:0}
 .log-coords{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.log-meta{font-size:11px;color:var(--color-text-secondary);margin-top:2px}
+.log-meta{font-size:11px;color:var(--text-2);margin-top:2px}
 .log-badge{font-size:10px;padding:2px 6px;border-radius:4px;font-weight:500}
 .badge-auto{background:#FCEBEB;color:#A32D2D}
 .badge-manual{background:#E6F1FB;color:#0C447C}
-.status-bar{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-text-secondary);padding:6px 0 0;flex-wrap:wrap}
-.status-dot{width:7px;height:7px;border-radius:50%;background:var(--color-border-secondary);flex-shrink:0}
+.status-bar{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2);padding:6px 0 0;flex-wrap:wrap}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--border);flex-shrink:0}
 .status-dot.gps-ok{background:#1D9E75}
 .status-dot.motion-ok{background:#1D9E75}
 .status-dot.running{background:#E24B4A;animation:pulse .8s ease-in-out infinite alternate}
 @keyframes pulse{from{opacity:.5}to{opacity:1}}
-.flash{animation:flashbg .4s ease-out}
-@keyframes flashbg{0%{background:#FCEBEB}100%{background:var(--color-background-secondary)}}
-.accel-bar-wrap{height:6px;background:var(--color-background-tertiary);border-radius:3px;margin-top:6px;overflow:hidden}
+.card.flash-pothole{animation:potholeFlash 2s ease-out}
+@keyframes potholeFlash{0%,10%{background:#F5A623}100%{background:var(--bg-card)}}
+.accel-bar-wrap{height:6px;background:var(--bg-metric);border-radius:3px;margin-top:6px;overflow:hidden}
 .accel-bar{height:100%;border-radius:3px;background:#E24B4A;transition:width .1s;width:0%}
 .count-badge{display:inline-block;background:#E24B4A;color:#fff;border-radius:10px;font-size:11px;font-weight:500;padding:1px 7px;margin-left:6px;vertical-align:middle}
-.sync-bar{margin-top:10px;padding-top:10px;border-top:1px solid var(--color-border-tertiary);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--color-border-secondary);flex-shrink:0}
+.sync-bar{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--border);flex-shrink:0}
 .sync-dot.ok{background:#1D9E75}
 .sync-dot.busy{background:#F5A623;animation:pulse .6s ease-in-out infinite alternate}
 .sync-dot.err{background:#E24B4A}
-.sync-label{font-size:12px;color:var(--color-text-secondary);flex:1}
+.sync-label{font-size:12px;color:var(--text-2);flex:1}
 .sync-link{font-size:12px;color:#1a73e8;text-decoration:none}
 .sync-link:hover{text-decoration:underline}
 .btn-auth{background:#1a73e8;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:500;padding:5px 10px;cursor:pointer;flex-shrink:0}
-.session-id{font-size:11px;color:var(--color-text-tertiary);text-align:center;padding:4px 0}
+.session-id{font-size:11px;color:var(--text-3);text-align:center;padding:4px 0}
 </style>
 
 <div class="header">
@@ -81,13 +104,13 @@ body{font-family:var(--font-sans,sans-serif);background:var(--color-background-t
   </div>
   <div>
     <div style="font-size:17px;font-weight:500">Spot Hole</div>
-    <div style="font-size:12px;color:var(--color-text-secondary);margin-top:1px">GPS + motion pothole logger</div>
+    <div style="font-size:12px;color:var(--text-2);margin-top:1px">GPS + motion pothole logger</div>
   </div>
 </div>
 
 <div class="main">
 
-  <div class="card">
+  <div class="card" id="sensor-card">
     <div class="card-title">Live sensors</div>
     <div class="metrics">
       <div class="metric"><div class="metric-val" id="spd">&#8212;</div><div class="metric-lbl">Speed (mph)</div></div>
@@ -136,7 +159,7 @@ body{font-family:var(--font-sans,sans-serif);background:var(--color-background-t
     <div class="btn-row" style="margin-top:12px">
       <button class="btn btn-export" onclick="exportCSV()">&#8681; CSV</button>
       <button class="btn btn-export" onclick="exportGPX()">&#128205; GPX</button>
-      <button class="btn btn-export" style="color:var(--color-text-danger)" onclick="clearLog()">&#128465; Clear</button>
+      <button class="btn btn-export" style="color:#E24B4A" onclick="clearLog()">&#128465; Clear</button>
     </div>
     <div class="sync-bar">
       <span class="sync-dot" id="sync-dot"></span>
@@ -184,7 +207,7 @@ function initAuth() {
       if (resp.error) { setSyncStatus('err', 'Auth error: ' + resp.error); return; }
       driveToken = resp.access_token;
       localStorage.setItem(SCOPE_KEY, '1');
-      sendSpotCheck();
+      sendSpotCheck(); // sends spot_check row then flushes all pending
     }
   });
 }
@@ -193,6 +216,7 @@ function initAuth() {
 async function ensureSheet() {
   if (sheetId) return;
 
+  // Create spreadsheet in AI folder via Drive API
   const res = await authFetch('https://www.googleapis.com/drive/v3/files', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -207,7 +231,10 @@ async function ensureSheet() {
   sheetId = data.id;
   localStorage.setItem(SHEET_KEY, sheetId);
 
+  // Write header row
   await sheetsAppend([['session_id','time','latitude','longitude','speed_mph','heading_deg','heading_compass','z_accel_g','type']]);
+
+  // Show link
   showSheetLink();
 }
 
@@ -221,6 +248,7 @@ async function sheetsAppend(rows) {
     }
   );
   if (res.status === 404) {
+    // Sheet was deleted — recreate next flush
     sheetId = null; localStorage.removeItem(SHEET_KEY);
     throw new Error('Sheet not found, will recreate');
   }
@@ -260,10 +288,10 @@ async function flushToSheet() {
 
   if (!driveToken) {
     tokenClient.requestAccessToken({ prompt: sheetId ? '' : 'consent' });
-    return;
+    return; // callback will re-trigger flushToSheet
   }
 
-  const rows = pendingRows.splice(0);
+  const rows = pendingRows.splice(0); // drain
   setSyncStatus('busy', 'Syncing ' + rows.length + ' row(s)...');
 
   try {
@@ -276,13 +304,14 @@ async function flushToSheet() {
     setSyncStatus('ok', `Synced · ${totalSynced} rows · ${new Date().toLocaleTimeString()}`);
     showSheetLink();
   } catch (err) {
-    pendingRows.unshift(...rows);
+    pendingRows.unshift(...rows); // put back
     if (err.message === 'API_NOT_ENABLED') {
       setSyncStatus('err', 'Enable Google Sheets API in Cloud Console → APIs & Services → Library');
     } else if (err.message === '401' || err.message === '403') {
       setSyncStatus('err', 'Auth expired — tap Stop then Start to re-authorize');
     } else {
       setSyncStatus('err', 'Sync failed: ' + err.message);
+      // retry in 30s
       setTimeout(() => { if (pendingRows.length) flushToSheet(); }, 30000);
     }
   }
@@ -313,6 +342,8 @@ function startDetection() {
   document.getElementById('btn-mark').disabled = false;
   updateStatus(); startGPS();
   if (sheetId) showSheetLink();
+  // Step 1: motion permission first (iOS needs user gesture)
+  // Step 2: Google auth after, preserving the gesture context via promise chain
   requestMotionThenAuth();
 }
 
@@ -328,6 +359,7 @@ function stopDetection() {
   document.getElementById('lbl-gps').textContent    = 'GPS: stopped';
   document.getElementById('dot-motion').className   = 'status-dot';
   document.getElementById('lbl-motion').textContent = 'Motion: stopped';
+  // Flush any remaining rows immediately on stop
   if (pendingRows.length) { clearTimeout(flushTimer); flushTimer = null; flushToSheet(); }
 }
 
@@ -397,15 +429,18 @@ function afterMotion() {
   if (driveToken) { sendSpotCheck(); return; }
   const scopeOk = localStorage.getItem(SCOPE_KEY);
   if (scopeOk) {
+    // Returning user — silent re-auth, no popup needed
     setSyncStatus('busy', 'Connecting to Sheets…');
     tokenClient.requestAccessToken({ prompt: '' });
   } else {
+    // First time — show button so user taps directly (iOS needs clean gesture for consent popup)
     document.getElementById('btn-auth').style.display = '';
     setSyncStatus('', 'Tap Authorize to connect Google Sheets');
   }
 }
 
 function requestGoogleAuth() {
+  // Called by direct button tap — safe user gesture for iOS consent popup
   document.getElementById('btn-auth').style.display = 'none';
   if (!tokenClient || driveToken) { if (driveToken) sendSpotCheck(); return; }
   setSyncStatus('busy', 'Authorizing…');
@@ -414,11 +449,13 @@ function requestGoogleAuth() {
 
 function sendSpotCheck() {
   if (spotCheckSent) {
+    // Not first auth — just flush any queued real rows
     if (pendingRows.length) flushToSheet();
     return;
   }
   spotCheckSent = true;
   const c = lastGPS ? lastGPS.coords : null;
+  // Prepend spot_check row — not shown in UI log, filter by type='spot_check' to exclude
   pendingRows.unshift({
     session_id:      SESSION_ID,
     time:            new Date().toISOString(),
@@ -430,7 +467,7 @@ function sendSpotCheck() {
     z_accel_g:       0,
     type:            'spot_check'
   });
-  flushToSheet();
+  flushToSheet(); // send immediately, don't wait 10s
 }
 
 // ── Detection ─────────────────────────────────────────────────────────────
@@ -452,10 +489,12 @@ function triggerDetection(type) {
   potholes.push(entry);
   pendingRows.push(entry);
   addLogItem(entry);
-  document.getElementById('log-card').classList.add('flash');
-  setTimeout(() => document.getElementById('log-card').classList.remove('flash'), 400);
+  const sc = document.getElementById('sensor-card');
+  sc.classList.remove('flash-pothole');
+  void sc.offsetWidth;
+  sc.classList.add('flash-pothole');
   document.getElementById('count').textContent = potholes.length;
-  setSyncStatus('busy', 'Syncing in ~10s…');
+  setSyncStatus('busy', 'Syncing in ' + (flushTimer ? '~10s' : '10s') + '…');
   scheduleFlush();
 }
 
