@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PotholeWatch</title>
-<script src="https://accounts.google.com/gsi/client" async defer onload="initDrive()"></script>
+<title>Spot Hole</title>
+<script src="https://accounts.google.com/gsi/client" async defer onload="initAuth()"></script>
 </head>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -34,10 +34,6 @@ input[type=range]{flex:1;accent-color:#E24B4A}
 .btn-stop:hover{background:#A32D2D}
 .btn-export{background:var(--color-background-tertiary);border:1px solid var(--color-border-secondary);color:var(--color-text-primary);font-size:13px;padding:10px 8px}
 .btn-export:hover{border-color:var(--color-border-primary)}
-.btn-drive{background:#1a73e8;color:#fff;font-size:14px;padding:12px;border:none;border-radius:10px;font-weight:500;cursor:pointer;transition:all .15s;width:100%;margin-top:8px}
-.btn-drive:hover{background:#1557b0}
-.btn-drive:disabled{background:#aac4f0;cursor:default}
-.btn-drive.success{background:#1D9E75}
 .btn-mark{background:#F5A623;color:#fff;font-size:22px;font-weight:700;padding:22px 16px;border:none;border-radius:14px;cursor:pointer;transition:all .15s;width:100%;letter-spacing:.02em;box-shadow:0 4px 12px rgba(245,166,35,.35)}
 .btn-mark:hover{background:#D4881A}
 .btn-mark.active{background:#1D9E75;transform:scale(0.97)}
@@ -55,8 +51,8 @@ input[type=range]{flex:1;accent-color:#E24B4A}
 .log-badge{font-size:10px;padding:2px 6px;border-radius:4px;font-weight:500}
 .badge-auto{background:#FCEBEB;color:#A32D2D}
 .badge-manual{background:#E6F1FB;color:#0C447C}
-.status-bar{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-text-secondary);padding:6px 0 0}
-.status-dot{width:7px;height:7px;border-radius:50%;background:var(--color-border-secondary)}
+.status-bar{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-text-secondary);padding:6px 0 0;flex-wrap:wrap}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--color-border-secondary);flex-shrink:0}
 .status-dot.gps-ok{background:#1D9E75}
 .status-dot.motion-ok{background:#1D9E75}
 .status-dot.running{background:#E24B4A;animation:pulse .8s ease-in-out infinite alternate}
@@ -66,7 +62,14 @@ input[type=range]{flex:1;accent-color:#E24B4A}
 .accel-bar-wrap{height:6px;background:var(--color-background-tertiary);border-radius:3px;margin-top:6px;overflow:hidden}
 .accel-bar{height:100%;border-radius:3px;background:#E24B4A;transition:width .1s;width:0%}
 .count-badge{display:inline-block;background:#E24B4A;color:#fff;border-radius:10px;font-size:11px;font-weight:500;padding:1px 7px;margin-left:6px;vertical-align:middle}
-.drive-status{font-size:11px;color:var(--color-text-secondary);text-align:center;margin-top:4px;min-height:16px}
+.sync-bar{margin-top:10px;padding-top:10px;border-top:1px solid var(--color-border-tertiary);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--color-border-secondary);flex-shrink:0}
+.sync-dot.ok{background:#1D9E75}
+.sync-dot.busy{background:#F5A623;animation:pulse .6s ease-in-out infinite alternate}
+.sync-dot.err{background:#E24B4A}
+.sync-label{font-size:12px;color:var(--color-text-secondary);flex:1}
+.sync-link{font-size:12px;color:#1a73e8;text-decoration:none}
+.sync-link:hover{text-decoration:underline}
 .session-id{font-size:11px;color:var(--color-text-tertiary);text-align:center;padding:4px 0}
 </style>
 
@@ -75,7 +78,7 @@ input[type=range]{flex:1;accent-color:#E24B4A}
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
   </div>
   <div>
-    <div style="font-size:17px;font-weight:500">PotholeWatch</div>
+    <div style="font-size:17px;font-weight:500">Spot Hole</div>
     <div style="font-size:12px;color:var(--color-text-secondary);margin-top:1px">GPS + motion pothole logger</div>
   </div>
 </div>
@@ -85,29 +88,14 @@ input[type=range]{flex:1;accent-color:#E24B4A}
   <div class="card">
     <div class="card-title">Live sensors</div>
     <div class="metrics">
-      <div class="metric">
-        <div class="metric-val" id="spd">&#8212;</div>
-        <div class="metric-lbl">Speed (mph)</div>
-      </div>
-      <div class="metric">
-        <div class="metric-val" id="hdg">&#8212;</div>
-        <div class="metric-lbl">Heading</div>
-      </div>
-      <div class="metric">
-        <div class="metric-val" id="zval">&#8212;</div>
-        <div class="metric-lbl">Z-accel (g)</div>
-      </div>
+      <div class="metric"><div class="metric-val" id="spd">&#8212;</div><div class="metric-lbl">Speed (mph)</div></div>
+      <div class="metric"><div class="metric-val" id="hdg">&#8212;</div><div class="metric-lbl">Heading</div></div>
+      <div class="metric"><div class="metric-val" id="zval">&#8212;</div><div class="metric-lbl">Z-accel (g)</div></div>
     </div>
     <div class="accel-bar-wrap"><div class="accel-bar" id="accel-bar"></div></div>
     <div class="sensor-row" style="margin-top:10px">
-      <div class="sensor-box">
-        <div class="sensor-lbl">Latitude</div>
-        <div class="sensor-val" id="lat">&#8212;</div>
-      </div>
-      <div class="sensor-box">
-        <div class="sensor-lbl">Longitude</div>
-        <div class="sensor-val" id="lon">&#8212;</div>
-      </div>
+      <div class="sensor-box"><div class="sensor-lbl">Latitude</div><div class="sensor-val" id="lat">&#8212;</div></div>
+      <div class="sensor-box"><div class="sensor-lbl">Longitude</div><div class="sensor-val" id="lon">&#8212;</div></div>
     </div>
     <div class="threshold-row">
       <label>Bump threshold</label>
@@ -146,26 +134,26 @@ input[type=range]{flex:1;accent-color:#E24B4A}
       <button class="btn btn-export" onclick="exportGPX()">&#128205; GPX</button>
       <button class="btn btn-export" style="color:var(--color-text-danger)" onclick="clearLog()">&#128465; Clear</button>
     </div>
-    <button class="btn-drive" id="btn-drive" onclick="uploadToDrive()">
-      <svg style="vertical-align:middle;margin-right:6px" width="16" height="16" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg"><path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/><path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/><path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg>
-      Upload to Drive (AI folder)
-    </button>
-    <div class="drive-status" id="drive-status"></div>
+    <div class="sync-bar">
+      <span class="sync-dot" id="sync-dot"></span>
+      <span class="sync-label" id="sync-label">Sheet sync: waiting for first pothole</span>
+      <a class="sync-link" id="sheet-link" href="#" target="_blank" style="display:none">Open Sheet &#8599;</a>
+    </div>
   </div>
 
 </div>
 
 <script>
-// ── Config ───────────────────────────────────────────────────────────────
-const CLIENT_ID   = '1013270395668-1ml6724admil6somlelnov3jj28j0b3m.apps.googleusercontent.com';
-const FOLDER_ID   = '1jlOcsQosXcHbCAL6H7ZubPRAPB1FIJ8W';
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+// ── Config ────────────────────────────────────────────────────────────────
+const CLIENT_ID  = '1013270395668-1ml6724admil6somlelnov3jj28j0b3m.apps.googleusercontent.com';
+const FOLDER_ID  = '1jlOcsQosXcHbCAL6H7ZubPRAPB1FIJ8W';
+const SCOPE      = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets';
+const SHEET_KEY  = 'pw_sheet_id';
 
-// ── Session ID (unique per page load) ────────────────────────────────────
+// ── Session ID ────────────────────────────────────────────────────────────
 function makeSessionId() {
-  const d = new Date();
-  const pad = n => String(n).padStart(2, '0');
-  return `sess_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  const d = new Date(), p = n => String(n).padStart(2,'0');
+  return `sess_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 const SESSION_ID = makeSessionId();
 document.getElementById('session-display').textContent = 'Session: ' + SESSION_ID;
@@ -175,66 +163,119 @@ let running = false, gpsWatchId = null, motionHandler = null;
 let lastGPS = null, potholes = [], threshold = 2.0, lastZ = 0;
 let cooldown = false, markCooldown = false;
 let tokenClient = null, driveToken = null;
+let sheetId = localStorage.getItem(SHEET_KEY) || null;
+let pendingRows = [], flushTimer = null, totalSynced = 0;
 
 const headings = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
 
-// ── Google Drive Auth ─────────────────────────────────────────────────────
-function initDrive() {
+// ── Auth ──────────────────────────────────────────────────────────────────
+function initAuth() {
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
-    scope: DRIVE_SCOPE,
+    scope: SCOPE,
     callback: (resp) => {
-      if (resp.error) { setDriveStatus('Auth error: ' + resp.error, true); return; }
+      if (resp.error) { setSyncStatus('err', 'Auth error: ' + resp.error); return; }
       driveToken = resp.access_token;
-      doUpload();
+      if (pendingRows.length) flushToSheet();
     }
   });
 }
 
-function uploadToDrive() {
-  if (!potholes.length) { alert('No potholes logged yet.'); return; }
-  if (!tokenClient) { setDriveStatus('Google API still loading, try again.', true); return; }
-  if (!driveToken) { tokenClient.requestAccessToken({ prompt: 'consent' }); }
-  else { doUpload(); }
+// ── Sheet helpers ─────────────────────────────────────────────────────────
+async function ensureSheet() {
+  if (sheetId) return;
+
+  const res = await authFetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'PotholeWatch Data',
+      mimeType: 'application/vnd.google-apps.spreadsheet',
+      parents: [FOLDER_ID]
+    })
+  });
+  if (!res.ok) throw new Error('Create sheet: HTTP ' + res.status);
+  const data = await res.json();
+  sheetId = data.id;
+  localStorage.setItem(SHEET_KEY, sheetId);
+
+  await sheetsAppend([['session_id','time','latitude','longitude','speed_mph','heading_deg','heading_compass','z_accel_g','type']]);
+  showSheetLink();
 }
 
-async function doUpload() {
-  const btn = document.getElementById('btn-drive');
-  btn.disabled = true;
-  setDriveStatus('Uploading...');
+async function sheetsAppend(rows) {
+  const res = await authFetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/A1:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: rows })
+    }
+  );
+  if (res.status === 404) {
+    sheetId = null; localStorage.removeItem(SHEET_KEY);
+    throw new Error('Sheet not found, will recreate');
+  }
+  if (!res.ok) throw new Error('Sheets API: HTTP ' + res.status);
+}
 
-  const hdr  = 'session_id,time,latitude,longitude,speed_mph,heading_deg,heading_compass,z_accel_g,type\n';
-  const rows = potholes.map(p =>
-    `${p.session_id},${p.time},${p.lat??''},${p.lon??''},${p.speed_mph},${p.heading_deg??''},${p.heading_compass},${p.z_accel_g},${p.type}`
-  ).join('\n');
+async function authFetch(url, opts) {
+  const res = await fetch(url, {
+    ...opts,
+    headers: { ...opts.headers, Authorization: 'Bearer ' + driveToken }
+  });
+  if (res.status === 401) { driveToken = null; throw new Error('401'); }
+  return res;
+}
 
-  const filename = `potholes_${SESSION_ID}.csv`;
-  const metadata = { name: filename, parents: [FOLDER_ID], mimeType: 'text/csv' };
-  const form = new FormData();
-  form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-  form.append('file',     new Blob([hdr + rows],               { type: 'text/csv' }));
+function showSheetLink() {
+  if (!sheetId) return;
+  const link = document.getElementById('sheet-link');
+  link.href = `https://docs.google.com/spreadsheets/d/${sheetId}/edit`;
+  link.style.display = '';
+}
+
+// ── Sync ──────────────────────────────────────────────────────────────────
+function scheduleFlush() {
+  if (flushTimer) return;
+  flushTimer = setTimeout(() => { flushTimer = null; flushToSheet(); }, 10000);
+}
+
+async function flushToSheet() {
+  if (!pendingRows.length) return;
+
+  if (!driveToken) {
+    tokenClient.requestAccessToken({ prompt: sheetId ? '' : 'consent' });
+    return;
+  }
+
+  const rows = pendingRows.splice(0);
+  setSyncStatus('busy', 'Syncing ' + rows.length + ' row(s)...');
 
   try {
-    const res = await fetch(
-      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
-      { method: 'POST', headers: { Authorization: 'Bearer ' + driveToken }, body: form }
-    );
-    if (res.status === 401) { driveToken = null; tokenClient.requestAccessToken({ prompt: '' }); return; }
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    await res.json();
-    btn.classList.add('success');
-    setDriveStatus('Saved: ' + filename);
-    setTimeout(() => { btn.classList.remove('success'); btn.disabled = false; setDriveStatus(''); }, 3000);
+    await ensureSheet();
+    await sheetsAppend(rows.map(p => [
+      p.session_id, p.time, p.lat ?? '', p.lon ?? '',
+      p.speed_mph, p.heading_deg ?? '', p.heading_compass, p.z_accel_g, p.type
+    ]));
+    totalSynced += rows.length;
+    setSyncStatus('ok', `Synced · ${totalSynced} rows · ${new Date().toLocaleTimeString()}`);
+    showSheetLink();
   } catch (err) {
-    setDriveStatus('Upload failed: ' + err.message, true);
-    btn.disabled = false;
+    pendingRows.unshift(...rows);
+    if (err.message === '401') {
+      tokenClient.requestAccessToken({ prompt: '' });
+    } else {
+      setSyncStatus('err', 'Sync failed: ' + err.message);
+      setTimeout(() => { if (pendingRows.length) flushToSheet(); }, 30000);
+    }
   }
 }
 
-function setDriveStatus(msg, isErr) {
-  const el = document.getElementById('drive-status');
-  el.textContent = msg;
-  el.style.color = isErr ? '#E24B4A' : 'var(--color-text-secondary)';
+function setSyncStatus(state, msg) {
+  const dot = document.getElementById('sync-dot');
+  dot.className = 'sync-dot' + (state ? ' ' + state : '');
+  document.getElementById('sync-label').textContent = msg;
 }
 
 // ── Sensors ───────────────────────────────────────────────────────────────
@@ -255,6 +296,7 @@ function startDetection() {
   document.getElementById('btn-stop').style.display  = '';
   document.getElementById('btn-mark').disabled = false;
   updateStatus(); startGPS(); startMotion();
+  if (sheetId) showSheetLink();
 }
 
 function stopDetection() {
@@ -269,6 +311,7 @@ function stopDetection() {
   document.getElementById('lbl-gps').textContent    = 'GPS: stopped';
   document.getElementById('dot-motion').className   = 'status-dot';
   document.getElementById('lbl-motion').textContent = 'Motion: stopped';
+  if (pendingRows.length) { clearTimeout(flushTimer); flushTimer = null; flushToSheet(); }
 }
 
 function startGPS() {
@@ -314,7 +357,7 @@ function startMotion() {
   }
 }
 
-// ── Detection ──────────────────────────────────────────────────────────────
+// ── Detection ─────────────────────────────────────────────────────────────
 function triggerDetection(type) {
   cooldown = true;
   setTimeout(() => { cooldown = false; }, 3000);
@@ -331,10 +374,13 @@ function triggerDetection(type) {
     type
   };
   potholes.push(entry);
+  pendingRows.push(entry);
   addLogItem(entry);
   document.getElementById('log-card').classList.add('flash');
   setTimeout(() => document.getElementById('log-card').classList.remove('flash'), 400);
   document.getElementById('count').textContent = potholes.length;
+  setSyncStatus('busy', 'Syncing in ~10s…');
+  scheduleFlush();
 }
 
 function manualMark() {
@@ -345,7 +391,7 @@ function manualMark() {
   setTimeout(() => { btn.classList.remove('active'); btn.disabled = false; markCooldown = false; }, 1000);
 }
 
-// ── Log UI ─────────────────────────────────────────────────────────────────
+// ── Log UI ────────────────────────────────────────────────────────────────
 function addLogItem(e) {
   const empty = document.getElementById('log-empty');
   if (empty) empty.remove();
@@ -356,17 +402,17 @@ function addLogItem(e) {
   const lonStr = e.lon != null ? e.lon.toFixed(6) : '';
   const t = new Date(e.time).toLocaleTimeString();
   div.innerHTML = `
-    <div class="log-dot ${e.type === 'auto' ? 'dot-auto' : 'dot-manual'}"></div>
+    <div class="log-dot ${e.type==='auto'?'dot-auto':'dot-manual'}"></div>
     <div class="log-info">
-      <div class="log-coords">${latStr}${lonStr ? ', ' + lonStr : ''}</div>
-      <div class="log-meta">${t} &middot; ${e.speed_mph} mph &middot; ${e.heading_compass !== '—' ? e.heading_compass : 'no heading'} &middot; Z: ${e.z_accel_g}g
-        <span class="log-badge ${e.type === 'auto' ? 'badge-auto' : 'badge-manual'}">${e.type}</span>
+      <div class="log-coords">${latStr}${lonStr?', '+lonStr:''}</div>
+      <div class="log-meta">${t} &middot; ${e.speed_mph} mph &middot; ${e.heading_compass!=='—'?e.heading_compass:'no heading'} &middot; Z: ${e.z_accel_g}g
+        <span class="log-badge ${e.type==='auto'?'badge-auto':'badge-manual'}">${e.type}</span>
       </div>
     </div>`;
   log.insertBefore(div, log.firstChild);
 }
 
-// ── Export ─────────────────────────────────────────────────────────────────
+// ── Export ────────────────────────────────────────────────────────────────
 function exportCSV() {
   if (!potholes.length) { alert('No potholes logged yet.'); return; }
   const hdr  = 'session_id,time,latitude,longitude,speed_mph,heading_deg,heading_compass,z_accel_g,type\n';
@@ -378,7 +424,7 @@ function exportCSV() {
 
 function exportGPX() {
   if (!potholes.length) { alert('No potholes logged yet.'); return; }
-  const pts = potholes.filter(p => p.lat && p.lon).map(p =>
+  const pts = potholes.filter(p=>p.lat&&p.lon).map(p=>
     `  <wpt lat="${p.lat}" lon="${p.lon}"><time>${p.time}</time><name>${p.type} ${p.z_accel_g}g</name><desc>Session: ${p.session_id}, Speed: ${p.speed_mph} mph, Heading: ${p.heading_compass}, Z: ${p.z_accel_g}g</desc></wpt>`
   ).join('\n');
   download(`potholes_${SESSION_ID}.gpx`, `<?xml version="1.0"?>\n<gpx version="1.1" creator="PotholeWatch">\n${pts}\n</gpx>`, 'application/gpx+xml');
@@ -386,7 +432,7 @@ function exportGPX() {
 
 function download(name, content, type) {
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([content], { type }));
+  a.href = URL.createObjectURL(new Blob([content],{type}));
   a.download = name; a.click();
 }
 
