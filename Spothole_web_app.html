@@ -300,6 +300,11 @@ function startDetection() {
   document.getElementById('btn-mark').disabled = false;
   updateStatus(); startGPS(); startMotion();
   if (sheetId) showSheetLink();
+  // Request auth now while we have a user gesture — iOS blocks popups from timers
+  if (!driveToken && tokenClient) {
+    setSyncStatus('busy', 'Authorizing Google Sheets…');
+    tokenClient.requestAccessToken({ prompt: sheetId ? '' : 'consent' });
+  }
 }
 
 function stopDetection() {
