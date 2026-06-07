@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PotholeWatch</title>
+<script src="https://accounts.google.com/gsi/client" async defer onload="initDrive()"></script>
+</head>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans,sans-serif);background:var(--color-background-tertiary);color:var(--color-text-primary);min-height:100vh}
+.header{background:var(--color-background-secondary);border-bottom:1px solid var(--color-border-tertiary);padding:12px 16px;display:flex;align-items:center;gap:10px}
+.logo{width:32px;height:32px;background:#E24B4A;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.main{padding:12px;display:flex;flex-direction:column;gap:12px;max-width:600px;margin:0 auto}
+.card{background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary);border-radius:12px;padding:14px}
+.card-title{font-size:12px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.metric{background:var(--color-background-tertiary);border-radius:8px;padding:10px;text-align:center}
+.metric-val{font-size:20px;font-weight:500;color:var(--color-text-primary);line-height:1.2}
+.metric-lbl{font-size:11px;color:var(--color-text-secondary);margin-top:2px}
+.sensor-row{display:flex;gap:8px;margin-bottom:8px}
+.sensor-box{flex:1;background:var(--color-background-tertiary);border-radius:8px;padding:8px 10px}
+.sensor-lbl{font-size:11px;color:var(--color-text-secondary)}
+.sensor-val{font-size:14px;font-weight:500;margin-top:2px}
+.threshold-row{display:flex;align-items:center;gap:10px;margin-top:8px}
+.threshold-row label{font-size:12px;color:var(--color-text-secondary);white-space:nowrap}
+input[type=range]{flex:1;accent-color:#E24B4A}
+.thresh-val{font-size:12px;font-weight:500;min-width:32px;text-align:right}
+.btn-row{display:flex;gap:8px}
+.btn{flex:1;padding:12px;border:none;border-radius:10px;font-size:15px;font-weight:500;cursor:pointer;transition:all .15s}
+.btn-start{background:#1D9E75;color:#fff}
+.btn-start:hover{background:#0F6E56}
+.btn-stop{background:#E24B4A;color:#fff}
+.btn-stop:hover{background:#A32D2D}
+.btn-manual{background:#378ADD;color:#fff;font-size:18px;padding:16px}
+.btn-manual:hover{background:#185FA5}
+.btn-manual.active{background:#1D9E75;transform:scale(0.97)}
+.btn-manual:disabled{background:var(--color-border-secondary);cursor:default;transform:none}
+.btn-export{background:var(--color-background-tertiary);border:1px solid var(--color-border-secondary);color:var(--color-text-primary);font-size:13px;padding:10px 8px}
+.btn-export:hover{border-color:var(--color-border-primary)}
+.btn-drive{background:#1a73e8;color:#fff;font-size:14px;padding:12px;border:none;border-radius:10px;font-weight:500;cursor:pointer;transition:all .15s;width:100%;margin-top:8px}
+.btn-drive:hover{background:#1557b0}
+.btn-drive:disabled{background:#aac4f0;cursor:default}
+.btn-drive.success{background:#1D9E75}
+.log{max-height:220px;overflow-y:auto}
+.log-empty{font-size:13px;color:var(--color-text-tertiary);text-align:center;padding:20px 0}
+.log-item{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--color-border-tertiary)}
+.log-item:last-child{border-bottom:none}
+.log-dot{width:8px;height:8px;border-radius:50%;margin-top:4px;flex-shrink:0}
+.dot-auto{background:#E24B4A}
+.dot-manual{background:#378ADD}
+.log-info{flex:1;min-width:0}
+.log-coords{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.log-meta{font-size:11px;color:var(--color-text-secondary);margin-top:2px}
+.log-badge{font-size:10px;padding:2px 6px;border-radius:4px;font-weight:500}
+.badge-auto{background:#FCEBEB;color:#A32D2D}
+.badge-manual{background:#E6F1FB;color:#0C447C}
+.status-bar{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-text-secondary);padding:6px 0 0}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--color-border-secondary)}
+.status-dot.gps-ok{background:#1D9E75}
+.status-dot.motion-ok{background:#1D9E75}
+.status-dot.running{background:#E24B4A;animation:pulse .8s ease-in-out infinite alternate}
+@keyframes pulse{from{opacity:.5}to{opacity:1}}
+.flash{animation:flashbg .4s ease-out}
+@keyframes flashbg{0%{background:#FCEBEB}100%{background:var(--color-background-secondary)}}
+.accel-bar-wrap{height:6px;background:var(--color-background-tertiary);border-radius:3px;margin-top:6px;overflow:hidden}
+.accel-bar{height:100%;border-radius:3px;background:#E24B4A;transition:width .1s;width:0%}
+.count-badge{display:inline-block;background:#E24B4A;color:#fff;border-radius:10px;font-size:11px;font-weight:500;padding:1px 7px;margin-left:6px;vertical-align:middle}
+.drive-status{font-size:11px;color:var(--color-text-secondary);text-align:center;margin-top:4px;min-height:16px}
+</style>
+
+<div class="header">
+  <div class="logo">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+  </div>
+  <div>
+    <div style="font-size:17px;font-weight:500">PotholeWatch</div>
+    <div style="font-size:12px;color:var(--color-text-secondary);margin-top:1px">GPS + motion pothole logger</div>
+  </div>
+</div>
+
+<div class="main">
+
+  <div class="card">
+    <div class="card-title">Live sensors</div>
+    <div class="metrics">
+      <div class="metric">
+        <div class="metric-val" id="spd">—</div>
+        <div class="metric-lbl">Speed (mph)</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val" id="hdg">—</div>
+        <div class="metric-lbl">Heading</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val" id="zval">—</div>
+        <div class="metric-lbl">Z-accel (g)</div>
+      </div>
+    </div>
+    <div class="accel-bar-wrap"><div class="accel-bar" id="accel-bar"></div></div>
+    <div class="sensor-row" style="margin-top:10px">
+      <div class="sensor-box">
+        <div class="sensor-lbl">Latitude</div>
+        <div class="sensor-val" id="lat">—</div>
+      </div>
+      <div class="sensor-box">
+        <div class="sensor-lbl">Longitude</div>
+        <div class="sensor-val" id="lon">—</div>
+      </div>
+    </div>
+    <div class="threshold-row">
+      <label>Bump threshold</label>
+      <input type="range" id="thresh" min="0.5" max="5" step="0.1" value="2.0" oninput="updateThresh(this.value)">
+      <span class="thresh-val" id="thresh-val">2.0g</span>
+    </div>
+    <div class="status-bar">
+      <span class="status-dot" id="dot-gps"></span><span id="lbl-gps">GPS: waiting</span>
+      <span style="margin:0 4px">·</span>
+      <span class="status-dot" id="dot-motion"></span><span id="lbl-motion">Motion: waiting</span>
+      <span style="margin:0 4px">·</span>
+      <span class="status-dot" id="dot-running"></span><span id="lbl-running">Stopped</span>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-start" id="btn-start" onclick="startDetection()">&#9654; Start</button>
+    <button class="btn btn-stop" id="btn-stop" onclick="stopDetection()" style="display:none">&#9646;&#9646; Stop</button>
+  </div>
+
+  <button class="btn btn-manual" id="btn-manual" onclick="manualLog()" disabled>&#9995; Manual log pothole</button>
+
+  <div class="card" id="log-card">
+    <div class="card-title">
+      Logged potholes
+      <span class="count-badge" id="count">0</span>
+    </div>
+    <div class="log" id="log">
+      <div class="log-empty" id="log-empty">No potholes logged yet. Start detection and drive!</div>
+    </div>
+    <div class="btn-row" style="margin-top:12px">
+      <button class="btn btn-export" onclick="exportCSV()">&#8681; CSV</button>
+      <button class="btn btn-export" onclick="exportGPX()">&#128205; GPX</button>
+      <button class="btn btn-export" style="color:var(--color-text-danger)" onclick="clearLog()">&#128465; Clear</button>
+    </div>
+    <button class="btn-drive" id="btn-drive" onclick="uploadToDrive()">
+      <svg style="vertical-align:middle;margin-right:6px" width="16" height="16" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg"><path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/><path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/><path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg>
+      Upload to Drive (AI folder)
+    </button>
+    <div class="drive-status" id="drive-status"></div>
+  </div>
+
+</div>
+
+<script>
+// ── Config ──────────────────────────────────────────────────────────────
+const CLIENT_ID    = '1013270395668-1ml6724admil6somlelnov3jj28j0b3m.apps.googleusercontent.com';
+const FOLDER_ID    = '1jlOcsQosXcHbCAL6H7ZubPRAPB1FIJ8W'; // Your "AI" folder
+const DRIVE_SCOPE  = 'https://www.googleapis.com/auth/drive.file';
+
+// ── State ────────────────────────────────────────────────────────────────
+let running = false, gpsWatchId = null, motionHandler = null;
+let lastGPS = null, potholes = [], threshold = 2.0, lastZ = 0;
+let cooldown = false, manualCooldown = false;
+let tokenClient = null, driveToken = null;
+
+const headings = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+
+// ── Google Drive Auth ────────────────────────────────────────────────────
+function initDrive() {
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: DRIVE_SCOPE,
+    callback: (resp) => {
+      if (resp.error) { setDriveStatus('Auth error: ' + resp.error, true); return; }
+      driveToken = resp.access_token;
+      doUpload();
+    }
+  });
+}
+
+function uploadToDrive() {
+  if (!potholes.length) { alert('No potholes logged yet.'); return; }
+  if (!tokenClient) { setDriveStatus('Google API still loading, try again in a moment.', true); return; }
+  if (!driveToken) {
+    tokenClient.requestAccessToken({ prompt: 'consent' });
+  } else {
+    doUpload();
+  }
+}
+
+async function doUpload() {
+  const btn = document.getElementById('btn-drive');
+  btn.disabled = true;
+  setDriveStatus('Uploading...');
+
+  const hdr  = 'time,latitude,longitude,speed_mph,heading_deg,heading_compass,z_accel_g,type\n';
+  const rows = potholes.map(p =>
+    `${p.time},${p.lat??''},${p.lon??''},${p.speed_mph},${p.heading_deg??''},${p.heading_compass},${p.z_accel_g},${p.type}`
+  ).join('\n');
+  const csv  = hdr + rows;
+
+  const ts       = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const filename = `potholes_${ts}.csv`;
+  const metadata = { name: filename, parents: [FOLDER_ID], mimeType: 'text/csv' };
+
+  const form = new FormData();
+  form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+  form.append('file',     new Blob([csv],                      { type: 'text/csv' }));
+
+  try {
+    const res = await fetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+      { method: 'POST', headers: { Authorization: 'Bearer ' + driveToken }, body: form }
+    );
+    if (res.status === 401) {
+      driveToken = null;
+      tokenClient.requestAccessToken({ prompt: '' });
+      return;
+    }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    await res.json();
+    btn.classList.add('success');
+    setDriveStatus('✓ Saved: ' + filename);
+    setTimeout(() => { btn.classList.remove('success'); btn.disabled = false; setDriveStatus(''); }, 3000);
+  } catch (err) {
+    setDriveStatus('Upload failed: ' + err.message, true);
+    btn.disabled = false;
+  }
+}
+
+function setDriveStatus(msg, isErr) {
+  const el = document.getElementById('drive-status');
+  el.textContent = msg;
+  el.style.color = isErr ? '#E24B4A' : 'var(--color-text-secondary)';
+}
+
+// ── Sensors ──────────────────────────────────────────────────────────────
+function degToCompass(deg) {
+  if (deg == null || isNaN(deg)) return '—';
+  return headings[Math.round(deg / 22.5) % 16];
+}
+function mpsToMph(mps) { return (mps * 2.23694).toFixed(1); }
+function updateThresh(v) { threshold = parseFloat(v); document.getElementById('thresh-val').textContent = v + 'g'; }
+function updateStatus() {
+  document.getElementById('dot-running').classList.toggle('running', running);
+  document.getElementById('lbl-running').textContent = running ? 'Detecting' : 'Stopped';
+}
+
+function startDetection() {
+  running = true;
+  document.getElementById('btn-start').style.display = 'none';
+  document.getElementById('btn-stop').style.display  = '';
+  document.getElementById('btn-manual').disabled = false;
+  updateStatus(); startGPS(); startMotion();
+}
+
+function stopDetection() {
+  running = false;
+  document.getElementById('btn-start').style.display = '';
+  document.getElementById('btn-stop').style.display  = 'none';
+  document.getElementById('btn-manual').disabled = true;
+  updateStatus();
+  if (gpsWatchId != null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
+  if (motionHandler)       { window.removeEventListener('devicemotion', motionHandler); motionHandler = null; }
+  document.getElementById('dot-gps').className      = 'status-dot';
+  document.getElementById('lbl-gps').textContent    = 'GPS: stopped';
+  document.getElementById('dot-motion').className   = 'status-dot';
+  document.getElementById('lbl-motion').textContent = 'Motion: stopped';
+}
+
+function startGPS() {
+  if (!navigator.geolocation) { alert('Geolocation not supported.'); return; }
+  gpsWatchId = navigator.geolocation.watchPosition(pos => {
+    lastGPS = pos;
+    const c = pos.coords;
+    document.getElementById('lat').textContent = c.latitude.toFixed(6);
+    document.getElementById('lon').textContent = c.longitude.toFixed(6);
+    document.getElementById('spd').textContent = c.speed != null && c.speed >= 0 ? mpsToMph(c.speed) : '0.0';
+    document.getElementById('hdg').textContent = c.heading != null && !isNaN(c.heading) ? degToCompass(c.heading) : '—';
+    document.getElementById('dot-gps').className   = 'status-dot gps-ok';
+    document.getElementById('lbl-gps').textContent = 'GPS: locked';
+  }, err => {
+    document.getElementById('lbl-gps').textContent = 'GPS: ' + err.message;
+  }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 });
+}
+
+function startMotion() {
+  if (typeof DeviceMotionEvent === 'undefined') {
+    document.getElementById('lbl-motion').textContent = 'Motion: not supported'; return;
+  }
+  function requestAndStart() {
+    motionHandler = e => {
+      const ag = e.accelerationIncludingGravity;
+      if (!ag) return;
+      const z = ag.z != null ? ag.z / 9.81 : 0;
+      lastZ = Math.abs(z);
+      document.getElementById('zval').textContent = lastZ.toFixed(2);
+      document.getElementById('accel-bar').style.width = Math.min(100, (lastZ / 5) * 100) + '%';
+      if (lastZ > threshold && running && !cooldown && lastGPS) triggerDetection('auto');
+      document.getElementById('dot-motion').className    = 'status-dot motion-ok';
+      document.getElementById('lbl-motion').textContent  = 'Motion: active';
+    };
+    window.addEventListener('devicemotion', motionHandler);
+  }
+  if (typeof DeviceMotionEvent.requestPermission === 'function') {
+    DeviceMotionEvent.requestPermission()
+      .then(s => s === 'granted' ? requestAndStart() : (document.getElementById('lbl-motion').textContent = 'Motion: denied'))
+      .catch(() => document.getElementById('lbl-motion').textContent = 'Motion: error');
+  } else {
+    requestAndStart();
+  }
+}
+
+// ── Detection ─────────────────────────────────────────────────────────────
+function triggerDetection(type) {
+  cooldown = true;
+  setTimeout(() => { cooldown = false; }, 3000);
+  const c = lastGPS ? lastGPS.coords : null;
+  const entry = {
+    time:            new Date().toISOString(),
+    lat:             c ? c.latitude  : null,
+    lon:             c ? c.longitude : null,
+    speed_mph:       c && c.speed != null && c.speed >= 0 ? parseFloat(mpsToMph(c.speed)) : 0,
+    heading_deg:     c && c.heading  != null ? Math.round(c.heading) : null,
+    heading_compass: c && c.heading  != null ? degToCompass(c.heading) : '—',
+    z_accel_g:       parseFloat(lastZ.toFixed(3)),
+    type
+  };
+  potholes.push(entry);
+  addLogItem(entry);
+  document.getElementById('log-card').classList.add('flash');
+  setTimeout(() => document.getElementById('log-card').classList.remove('flash'), 400);
+  document.getElementById('count').textContent = potholes.length;
+}
+
+function manualLog() {
+  if (manualCooldown) return;
+  const btn = document.getElementById('btn-manual');
+  btn.classList.add('active'); btn.disabled = true; manualCooldown = true;
+  triggerDetection('manual');
+  setTimeout(() => { btn.classList.remove('active'); btn.disabled = false; manualCooldown = false; }, 1000);
+}
+
+// ── Log UI ────────────────────────────────────────────────────────────────
+function addLogItem(e) {
+  const empty = document.getElementById('log-empty');
+  if (empty) empty.remove();
+  const log = document.getElementById('log');
+  const div = document.createElement('div');
+  div.className = 'log-item';
+  const latStr = e.lat != null ? e.lat.toFixed(6) : 'no GPS';
+  const lonStr = e.lon != null ? e.lon.toFixed(6) : '';
+  const t = new Date(e.time).toLocaleTimeString();
+  div.innerHTML = `
+    <div class="log-dot ${e.type === 'auto' ? 'dot-auto' : 'dot-manual'}"></div>
+    <div class="log-info">
+      <div class="log-coords">${latStr}${lonStr ? ', ' + lonStr : ''}</div>
+      <div class="log-meta">${t} &middot; ${e.speed_mph} mph &middot; ${e.heading_compass !== '—' ? e.heading_compass : 'no heading'} &middot; Z: ${e.z_accel_g}g
+        <span class="log-badge ${e.type === 'auto' ? 'badge-auto' : 'badge-manual'}">${e.type}</span>
+      </div>
+    </div>`;
+  log.insertBefore(div, log.firstChild);
+}
+
+// ── Export ────────────────────────────────────────────────────────────────
+function exportCSV() {
+  if (!potholes.length) { alert('No potholes logged yet.'); return; }
+  const hdr  = 'time,latitude,longitude,speed_mph,heading_deg,heading_compass,z_accel_g,type\n';
+  const rows = potholes.map(p => `${p.time},${p.lat??''},${p.lon??''},${p.speed_mph},${p.heading_deg??''},${p.heading_compass},${p.z_accel_g},${p.type}`).join('\n');
+  download('potholes.csv', hdr + rows, 'text/csv');
+}
+
+function exportGPX() {
+  if (!potholes.length) { alert('No potholes logged yet.'); return; }
+  const pts = potholes.filter(p => p.lat && p.lon).map(p =>
+    `  <wpt lat="${p.lat}" lon="${p.lon}"><time>${p.time}</time><name>${p.type} ${p.z_accel_g}g</name><desc>Speed: ${p.speed_mph} mph, Heading: ${p.heading_compass}, Z: ${p.z_accel_g}g</desc></wpt>`
+  ).join('\n');
+  download('potholes.gpx', `<?xml version="1.0"?>\n<gpx version="1.1" creator="PotholeWatch">\n${pts}\n</gpx>`, 'application/gpx+xml');
+}
+
+function download(name, content, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type }));
+  a.download = name; a.click();
+}
+
+function clearLog() {
+  if (!potholes.length) return;
+  if (!confirm('Clear all ' + potholes.length + ' logged potholes?')) return;
+  potholes = [];
+  document.getElementById('log').innerHTML = '<div class="log-empty" id="log-empty">No potholes logged yet. Start detection and drive!</div>';
+  document.getElementById('count').textContent = '0';
+}
+</script>
