@@ -152,6 +152,7 @@ const CLIENT_ID  = '1013270395668-1ml6724admil6somlelnov3jj28j0b3m.apps.googleus
 const FOLDER_ID  = '1jlOcsQosXcHbCAL6H7ZubPRAPB1FIJ8W';
 const SCOPE      = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets';
 const SHEET_KEY  = 'pw_sheet_id';
+const SCOPE_KEY  = 'pw_scope_ok';
 
 // ── Session ID ────────────────────────────────────────────────────────────
 function makeSessionId() {
@@ -179,6 +180,7 @@ function initAuth() {
     callback: (resp) => {
       if (resp.error) { setSyncStatus('err', 'Auth error: ' + resp.error); return; }
       driveToken = resp.access_token;
+      localStorage.setItem(SCOPE_KEY, '1');
       if (pendingRows.length) flushToSheet();
     }
   });
@@ -228,6 +230,7 @@ async function authFetch(url, opts) {
     headers: { ...opts.headers, Authorization: 'Bearer ' + driveToken }
   });
   if (res.status === 401) { driveToken = null; throw new Error('401'); }
+  if (res.status === 403) { driveToken = null; localStorage.removeItem(SCOPE_KEY); throw new Error('403'); }
   return res;
 }
 
@@ -266,8 +269,8 @@ async function flushToSheet() {
     showSheetLink();
   } catch (err) {
     pendingRows.unshift(...rows);
-    if (err.message === '401') {
-      tokenClient.requestAccessToken({ prompt: '' });
+    if (err.message === '401' || err.message === '403') {
+      setSyncStatus('err', 'Auth expired — tap Stop then Start to re-authorize');
     } else {
       setSyncStatus('err', 'Sync failed: ' + err.message);
       setTimeout(() => { if (pendingRows.length) flushToSheet(); }, 30000);
@@ -302,8 +305,9 @@ function startDetection() {
   if (sheetId) showSheetLink();
   // Request auth now while we have a user gesture — iOS blocks popups from timers
   if (!driveToken && tokenClient) {
+    const scopeOk = localStorage.getItem(SCOPE_KEY);
     setSyncStatus('busy', 'Authorizing Google Sheets…');
-    tokenClient.requestAccessToken({ prompt: sheetId ? '' : 'consent' });
+    tokenClient.requestAccessToken({ prompt: scopeOk ? '' : 'consent' });
   }
 }
 
