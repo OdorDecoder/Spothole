@@ -71,6 +71,7 @@ body{font-family:var(--font-sans,sans-serif);background:var(--color-background-t
 .sync-label{font-size:12px;color:var(--color-text-secondary);flex:1}
 .sync-link{font-size:12px;color:#1a73e8;text-decoration:none}
 .sync-link:hover{text-decoration:underline}
+.btn-auth{background:#1a73e8;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:500;padding:5px 10px;cursor:pointer;flex-shrink:0}
 .session-id{font-size:11px;color:var(--color-text-tertiary);text-align:center;padding:4px 0}
 </style>
 
@@ -140,6 +141,7 @@ body{font-family:var(--font-sans,sans-serif);background:var(--color-background-t
     <div class="sync-bar">
       <span class="sync-dot" id="sync-dot"></span>
       <span class="sync-label" id="sync-label">Sheet sync: waiting for first pothole</span>
+      <button class="btn-auth" id="btn-auth" onclick="requestGoogleAuth()" style="display:none">Authorize Sheets</button>
       <a class="sync-link" id="sheet-link" href="#" target="_blank" style="display:none">Open Sheet &#8599;</a>
     </div>
   </div>
@@ -357,12 +359,12 @@ function attachMotionHandler() {
 function requestMotionThenAuth() {
   if (typeof DeviceMotionEvent === 'undefined') {
     document.getElementById('lbl-motion').textContent = 'Motion: not supported';
-    requestGoogleAuth();
+    afterMotion();
     return;
   }
   if (motionPermissionGranted) {
     attachMotionHandler();
-    requestGoogleAuth();
+    afterMotion();
     return;
   }
   if (typeof DeviceMotionEvent.requestPermission === 'function') {
@@ -370,25 +372,37 @@ function requestMotionThenAuth() {
       .then(s => {
         if (s === 'granted') { motionPermissionGranted = true; attachMotionHandler(); }
         else document.getElementById('lbl-motion').textContent = 'Motion: denied';
-        requestGoogleAuth();
+        afterMotion();
       })
       .catch(() => {
         document.getElementById('lbl-motion').textContent = 'Motion: error';
-        requestGoogleAuth();
+        afterMotion();
       });
   } else {
     motionPermissionGranted = true;
     attachMotionHandler();
-    requestGoogleAuth();
+    afterMotion();
+  }
+}
+
+function afterMotion() {
+  if (!tokenClient) return;
+  if (driveToken) { sendSpotCheck(); return; }
+  const scopeOk = localStorage.getItem(SCOPE_KEY);
+  if (scopeOk) {
+    setSyncStatus('busy', 'Connecting to Sheets…');
+    tokenClient.requestAccessToken({ prompt: '' });
+  } else {
+    document.getElementById('btn-auth').style.display = '';
+    setSyncStatus('', 'Tap Authorize to connect Google Sheets');
   }
 }
 
 function requestGoogleAuth() {
-  if (!tokenClient) return;
-  if (driveToken) { sendSpotCheck(); return; }
-  const scopeOk = localStorage.getItem(SCOPE_KEY);
-  setSyncStatus('busy', 'Authorizing Google Sheets…');
-  tokenClient.requestAccessToken({ prompt: scopeOk ? '' : 'consent' });
+  document.getElementById('btn-auth').style.display = 'none';
+  if (!tokenClient || driveToken) { if (driveToken) sendSpotCheck(); return; }
+  setSyncStatus('busy', 'Authorizing…');
+  tokenClient.requestAccessToken({ prompt: 'consent' });
 }
 
 function sendSpotCheck() {
