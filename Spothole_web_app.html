@@ -22,10 +22,11 @@ body{font-family:var(--font-sans,sans-serif);background:var(--color-background-t
 .sensor-box{flex:1;background:var(--color-background-tertiary);border-radius:8px;padding:8px 10px}
 .sensor-lbl{font-size:11px;color:var(--color-text-secondary)}
 .sensor-val{font-size:14px;font-weight:500;margin-top:2px}
-.threshold-row{display:flex;align-items:center;gap:10px;margin-top:8px}
-.threshold-row label{font-size:12px;color:var(--color-text-secondary);white-space:nowrap}
-input[type=range]{flex:1;accent-color:#E24B4A}
-.thresh-val{font-size:12px;font-weight:500;min-width:32px;text-align:right}
+.threshold-row{display:flex;flex-direction:column;gap:0;margin-top:8px}
+.threshold-row input[type=range]{width:100%;accent-color:#E24B4A}
+.threshold-labels{display:flex;justify-content:space-between;align-items:center;margin-top:4px}
+.threshold-labels label{font-size:12px;color:var(--color-text-secondary)}
+.thresh-val{font-size:12px;font-weight:500}
 .btn-row{display:flex;gap:8px}
 .btn{flex:1;padding:12px;border:none;border-radius:10px;font-size:15px;font-weight:500;cursor:pointer;transition:all .15s}
 .btn-start{background:#1D9E75;color:#fff}
@@ -98,9 +99,11 @@ input[type=range]{flex:1;accent-color:#E24B4A}
       <div class="sensor-box"><div class="sensor-lbl">Longitude</div><div class="sensor-val" id="lon">&#8212;</div></div>
     </div>
     <div class="threshold-row">
-      <label>Bump threshold</label>
-      <input type="range" id="thresh" min="0.5" max="5" step="0.1" value="2.0" oninput="updateThresh(this.value)">
-      <span class="thresh-val" id="thresh-val">2.0g</span>
+      <input type="range" id="thresh" min="0.1" max="2" step="0.05" value="1.0" oninput="updateThresh(this.value)">
+      <div class="threshold-labels">
+        <label>Bump threshold</label>
+        <span class="thresh-val" id="thresh-val">1.0g</span>
+      </div>
     </div>
     <div class="status-bar">
       <span class="status-dot" id="dot-gps"></span><span id="lbl-gps">GPS: waiting</span>
@@ -336,7 +339,7 @@ function startMotion() {
   }
   function requestAndStart() {
     motionHandler = e => {
-      const ag = e.accelerationIncludingGravity;
+      const ag = (e.acceleration && e.acceleration.z != null) ? e.acceleration : e.accelerationIncludingGravity;
       if (!ag) return;
       const z = ag.z != null ? ag.z / 9.81 : 0;
       lastZ = Math.abs(z);
