@@ -233,7 +233,12 @@ async function authFetch(url, opts) {
     headers: { ...opts.headers, Authorization: 'Bearer ' + driveToken }
   });
   if (res.status === 401) { driveToken = null; throw new Error('401'); }
-  if (res.status === 403) { driveToken = null; localStorage.removeItem(SCOPE_KEY); throw new Error('403'); }
+  if (res.status === 403) {
+    let reason = '';
+    try { const j = await res.clone().json(); reason = j.error?.errors?.[0]?.reason || ''; } catch(e) {}
+    if (reason === 'accessNotConfigured') throw new Error('API_NOT_ENABLED');
+    driveToken = null; localStorage.removeItem(SCOPE_KEY); throw new Error('403');
+  }
   return res;
 }
 
@@ -272,7 +277,9 @@ async function flushToSheet() {
     showSheetLink();
   } catch (err) {
     pendingRows.unshift(...rows);
-    if (err.message === '401' || err.message === '403') {
+    if (err.message === 'API_NOT_ENABLED') {
+      setSyncStatus('err', 'Enable Google Sheets API in Cloud Console → APIs & Services → Library');
+    } else if (err.message === '401' || err.message === '403') {
       setSyncStatus('err', 'Auth expired — tap Stop then Start to re-authorize');
     } else {
       setSyncStatus('err', 'Sync failed: ' + err.message);
