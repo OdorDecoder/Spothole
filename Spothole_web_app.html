@@ -95,6 +95,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg
 .sync-link{font-size:12px;color:#1a73e8;text-decoration:none}
 .sync-link:hover{text-decoration:underline}
 .btn-auth{background:#1a73e8;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:500;padding:5px 10px;cursor:pointer;flex-shrink:0}
+.btn-maps{background:#1a73e8;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:500;padding:11px;cursor:pointer;width:100%;margin-top:8px}
+.btn-maps:hover{background:#1557b0}
 .session-id{font-size:11px;color:var(--text-3);text-align:center;padding:4px 0}
 </style>
 
@@ -159,8 +161,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg
     <div class="btn-row" style="margin-top:12px">
       <button class="btn btn-export" onclick="exportCSV()">&#8681; CSV</button>
       <button class="btn btn-export" onclick="exportGPX()">&#128205; GPX</button>
+      <button class="btn btn-export" onclick="exportKML()">&#127759; KML</button>
       <button class="btn btn-export" style="color:#E24B4A" onclick="clearLog()">&#128465; Clear</button>
     </div>
+    <button class="btn-maps" onclick="openInGoogleMaps()">&#128506; Open in Google Maps</button>
     <div class="sync-bar">
       <span class="sync-dot" id="sync-dot"></span>
       <span class="sync-label" id="sync-label">Sheet sync: waiting for first pothole</span>
@@ -361,6 +365,15 @@ function stopDetection() {
   document.getElementById('lbl-motion').textContent = 'Motion: stopped';
   // Flush any remaining rows immediately on stop
   if (pendingRows.length) { clearTimeout(flushTimer); flushTimer = null; flushToSheet(); }
+  // Auto-export all formats
+  const geopts = potholes.filter(p => p.lat && p.lon);
+  if (potholes.length) {
+    setTimeout(() => exportCSV(), 100);
+    if (geopts.length) {
+      setTimeout(() => exportGPX(), 400);
+      setTimeout(() => exportKML(), 700);
+    }
+  }
 }
 
 function startGPS() {
@@ -534,7 +547,7 @@ function exportCSV() {
   const rows = potholes.map(p =>
     `${p.session_id},${p.time},${p.lat??''},${p.lon??''},${p.speed_mph},${p.heading_deg??''},${p.heading_compass},${p.z_accel_g},${p.type}`
   ).join('\n');
-  download(`potholes_${SESSION_ID}.csv`, hdr + rows, 'text/csv');
+  download(`SpotHole_${SESSION_ID}.csv`, hdr + rows, 'text/csv');
 }
 
 function exportGPX() {
@@ -542,7 +555,45 @@ function exportGPX() {
   const pts = potholes.filter(p=>p.lat&&p.lon).map(p=>
     `  <wpt lat="${p.lat}" lon="${p.lon}"><time>${p.time}</time><name>${p.type} ${p.z_accel_g}g</name><desc>Session: ${p.session_id}, Speed: ${p.speed_mph} mph, Heading: ${p.heading_compass}, Z: ${p.z_accel_g}g</desc></wpt>`
   ).join('\n');
-  download(`potholes_${SESSION_ID}.gpx`, `<?xml version="1.0"?>\n<gpx version="1.1" creator="PotholeWatch">\n${pts}\n</gpx>`, 'application/gpx+xml');
+  download(`SpotHole_${SESSION_ID}.gpx`, `<?xml version="1.0"?>\n<gpx version="1.1" creator="Spot Hole">\n${pts}\n</gpx>`, 'application/gpx+xml');
+}
+
+function exportKML() {
+  if (!potholes.length) { alert('No potholes logged yet.'); return; }
+  const placemarks = potholes.filter(p=>p.lat&&p.lon).map(p => {
+    const color = p.type === 'auto' ? 'ff0000ff' : 'ffff0000'; // red=auto, blue=manual (KML AABBGGRR)
+    return `  <Placemark>
+    <name>${p.type === 'auto' ? '🔴' : '🔵'} ${p.z_accel_g}g</name>
+    <description>Time: ${p.time}&#10;Type: ${p.type}&#10;Speed: ${p.speed_mph} mph&#10;Heading: ${p.heading_compass}&#10;Z-accel: ${p.z_accel_g}g&#10;Session: ${p.session_id}</description>
+    <Style><IconStyle><color>${color}</color></IconStyle></Style>
+    <Point><coordinates>${p.lon},${p.lat},0</coordinates></Point>
+  </Placemark>`;
+  }).join('\n');
+  const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+  <name>Spot Hole ${SESSION_ID}</name>
+${placemarks}
+</Document>
+</kml>`;
+  download(`SpotHole_${SESSION_ID}.kml`, kml, 'application/vnd.google-earth.kml+xml');
+}
+
+function openInGoogleMaps() {
+  const pts = potholes.filter(p => p.lat && p.lon);
+  if (!pts.length) { alert('No potholes with GPS coordinates to show.'); return; }
+  let url;
+  if (pts.length === 1) {
+    url = `https://www.google.com/maps/search/?api=1&query=${pts[0].lat},${pts[0].lon}`;
+  } else {
+    const MAX = 10;
+    const shown = pts.slice(0, MAX);
+    const origin = `${shown[0].lat},${shown[0].lon}`;
+    const dest   = `${shown[shown.length-1].lat},${shown[shown.length-1].lon}`;
+    const wpts   = shown.slice(1,-1).map(p=>`${p.lat},${p.lon}`).join('|');
+    url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}${wpts?'&waypoints='+wpts:''}`;
+  }
+  window.open(url, '_blank');
 }
 
 function download(name, content, type) {
