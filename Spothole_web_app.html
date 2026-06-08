@@ -107,24 +107,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;ba
 .pill-dot.live{background:#E24B4A;animation:pulse .8s ease-in-out infinite alternate}
 .session-id{font-size:10px;color:var(--text-3);text-align:right;margin-top:5px}
 
-/* ── Hi-Rez button ── */
-.btn-hirez{background:#1c1c1e;color:#fff;border:1.5px solid #48484a;border-radius:12px;font-size:15px;font-weight:600;padding:14px;cursor:pointer;transition:all .15s;width:100%;letter-spacing:-.01em}
-@media (prefers-color-scheme: dark){.btn-hirez{background:#2c2c2e;border-color:#636366}}
-.btn-hirez.recording{background:#E24B4A;border-color:#E24B4A;animation:pulse .8s ease-in-out infinite alternate}
-.btn-hirez:disabled{opacity:.4;cursor:default}
-
-/* ── Start / Stop ── */
-.btn-row{display:flex;gap:8px}
-.btn{flex:1;padding:14px;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;transition:transform .1s;letter-spacing:-.01em}
+/* ── Controls row (Start · Mark · HR) ── */
+.controls-row{display:flex;gap:8px;align-items:stretch}
+.btn{padding:14px;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;transition:transform .1s;letter-spacing:-.01em}
 .btn:active{transform:scale(.97)}
-.btn-start{background:#1D9E75;color:#fff;box-shadow:0 2px 8px rgba(29,158,117,.3)}
-.btn-stop{background:#E24B4A;color:#fff;box-shadow:0 2px 8px rgba(226,75,74,.3)}
-
-/* ── Mark button ── */
-.btn-mark{background:#F5A623;color:#fff;font-size:20px;font-weight:700;padding:20px 16px;border:none;border-radius:14px;cursor:pointer;transition:transform .1s,background .15s;width:100%;letter-spacing:.01em;box-shadow:0 3px 12px rgba(245,166,35,.4)}
+.btn-start{flex:1;background:#1D9E75;color:#fff;box-shadow:0 2px 8px rgba(29,158,117,.3)}
+.btn-stop{flex:1;background:#E24B4A;color:#fff;box-shadow:0 2px 8px rgba(226,75,74,.3)}
+.btn-mark{flex:2;background:#F5A623;color:#fff;font-size:15px;font-weight:700;border:none;border-radius:12px;padding:14px 10px;cursor:pointer;transition:transform .1s,background .15s;box-shadow:0 2px 8px rgba(245,166,35,.35);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .btn-mark:active,.btn-mark.active{transform:scale(.97)}
 .btn-mark.active{background:#1D9E75}
 .btn-mark:disabled{background:var(--border-2);cursor:default;transform:none;box-shadow:none;color:var(--text-3)}
+.btn-hr{width:76px;flex-shrink:0;background:#1c1c1e;color:#fff;border:1.5px solid #48484a;border-radius:12px;font-size:13px;font-weight:700;padding:0;cursor:pointer;transition:all .15s;letter-spacing:.02em}
+@media (prefers-color-scheme: dark){.btn-hr{background:#2c2c2e;border-color:#636366}}
+.btn-hr.recording{background:#E24B4A;border-color:#E24B4A;font-size:11px;animation:pulse .8s ease-in-out infinite alternate}
+.btn-hr:disabled{opacity:.4;cursor:default}
 
 /* ── Log ── */
 .log{max-height:200px;overflow-y:auto}
@@ -253,16 +249,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;ba
 
   </div><!-- /sensor-card -->
 
-  <button class="btn-hirez" id="btn-hirez" onclick="startHiRez()">&#9210; Hi-Rez &nbsp;·&nbsp; 10 Hz · 15 s burst</button>
-
-  <div class="btn-row">
+  <div class="controls-row">
     <button class="btn btn-start" id="btn-start" onclick="startDetection()">&#9654; Start</button>
     <button class="btn btn-stop"  id="btn-stop"  onclick="stopDetection()" style="display:none">&#9646;&#9646; Stop</button>
+    <button class="btn-mark" id="btn-mark" onclick="manualMark()" disabled>😮 Pothole</button>
+    <button class="btn-hr" id="btn-hirez" onclick="startHiRez()">HIGH RES</button>
   </div>
-
-  <button class="btn-mark" id="btn-mark" onclick="manualMark()" disabled>
-    &#128073; Tap to Mark Pothole
-  </button>
 
   <button class="btn-share" id="btn-share" onclick="toggleShare()">
     &#8679; Share &amp; Export
@@ -671,10 +663,10 @@ function startHiRez() {
     pendingRows.push(row);
     hirezCount++;
 
-    // Update button label every second (every 10 samples)
+    // Update countdown every second (every 10 samples)
     if (hirezCount % HIREZ_HZ === 0) {
       remaining.v = HIREZ_SECONDS - hirezCount / HIREZ_HZ;
-      btn.textContent = `● REC  ${remaining.v}s remaining`;
+      btn.textContent = remaining.v + 's';
     }
 
     if (hirezCount >= HIREZ_SAMPLES) {
@@ -682,7 +674,7 @@ function startHiRez() {
       hirezTimer = null;
       btn.classList.remove('recording');
       btn.disabled = false;
-      btn.textContent = '⏺ Hi-Rez · 10 Hz · 15 s burst';
+      btn.textContent = 'HR';
       // Flush immediately — don't wait for the 10s schedule
       clearTimeout(flushTimer); flushTimer = null;
       flushToSheet();
