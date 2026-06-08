@@ -34,7 +34,7 @@ function doPost(e) {
         sheet = ss.insertSheet(sheetName);
         sheet.appendRow([
           'session_id','time','latitude','longitude',
-          'speed_mph','heading_deg','heading_compass','z_accel_g','type','device'
+          'speed_mph','heading_deg','heading_compass','x_accel_g','y_accel_g','z_accel_g','type','device'
         ]);
       }
     } finally {
