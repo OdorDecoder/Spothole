@@ -222,7 +222,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;ba
         <span class="axis-thresh" id="thresh-x-val">1.0g</span>
       </div>
       <div class="bar-wrap x"><div class="bar-cover" id="bar-x"></div></div>
-      <input class="axis-slider x" type="range" id="slider-x" min="0.1" max="3" step="0.1" value="1.0" oninput="updateThreshX(this.value)">
+      <input class="axis-slider x" type="range" id="slider-x" min="0.1" max="2" step="0.1" value="1.0" oninput="updateThreshX(this.value)">
     </div>
     <div class="axis-block">
       <div class="axis-header">
@@ -230,7 +230,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;ba
         <span class="axis-thresh" id="thresh-y-val">1.0g</span>
       </div>
       <div class="bar-wrap y"><div class="bar-cover" id="bar-y"></div></div>
-      <input class="axis-slider y" type="range" id="slider-y" min="0.1" max="3" step="0.1" value="1.0" oninput="updateThreshY(this.value)">
+      <input class="axis-slider y" type="range" id="slider-y" min="0.1" max="2" step="0.1" value="1.0" oninput="updateThreshY(this.value)">
     </div>
     <div class="axis-block">
       <div class="axis-header">
@@ -238,7 +238,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;ba
         <span class="axis-thresh" id="thresh-z-val">1.0g</span>
       </div>
       <div class="bar-wrap z"><div class="bar-cover" id="bar-z"></div></div>
-      <input class="axis-slider z" type="range" id="slider-z" min="0.1" max="3" step="0.1" value="1.0" oninput="updateThreshZ(this.value)">
+      <input class="axis-slider z" type="range" id="slider-z" min="0.1" max="2" step="0.1" value="1.0" oninput="updateThreshZ(this.value)">
     </div>
   </div>
 
@@ -589,10 +589,8 @@ function drawGraph() {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Draw axis traces
-  const colors = dark
-    ? { x:'#38BDF8', y:'#A78BFA', z:'#34D39A' }
-    : { x:'#0891B2', y:'#7C3AED', z:'#1D9E75' };
+  // Draw axis traces — X=red, Y=green, Z=yellow
+  const colors = { x:'#FF453A', y:'#30D158', z:'#FFD60A' };
 
   ['x','y','z'].forEach(axis => {
     const data = gBuf[axis];
@@ -607,16 +605,34 @@ function drawGraph() {
     ctx.stroke();
   });
 
-  // Legend: X Y Z dots top-right
+  // Legend: X Y Z — top-right, spaced further apart
   [['X', colors.x], ['Y', colors.y], ['Z', colors.z]].forEach(([lbl, col], i) => {
+    const cx = W - 66 + i * 24;
     ctx.fillStyle = col;
     ctx.beginPath();
-    ctx.arc(W - 40 + i*14, 8, 3, 0, Math.PI*2);
+    ctx.arc(cx, 9, 4, 0, Math.PI*2);
     ctx.fill();
-    ctx.fillStyle = dark ? 'rgba(255,255,255,.5)' : 'rgba(0,0,0,.4)';
-    ctx.font = '9px -apple-system,sans-serif';
-    ctx.fillText(lbl, W - 40 + i*14 + 5, 11);
+    ctx.fillStyle = dark ? 'rgba(255,255,255,.65)' : 'rgba(0,0,0,.5)';
+    ctx.font = 'bold 10px -apple-system,sans-serif';
+    ctx.fillText(lbl, cx + 6, 13);
   });
+
+  // Pothole marker — red vertical line
+  if (graphMarkTime) {
+    const sampsAgo = Math.round((Date.now() - graphMarkTime) / 500);
+    if (sampsAgo < GRAPH_LEN) {
+      const px = ((GRAPH_LEN - 1 - sampsAgo) / (GRAPH_LEN - 1)) * W;
+      ctx.setLineDash([]);
+      ctx.strokeStyle = 'rgba(255,69,58,0.85)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(px, 0);
+      ctx.lineTo(px, H);
+      ctx.stroke();
+    } else {
+      graphMarkTime = null;
+    }
+  }
 }
 
 // ── Hi-Rez burst recorder (10 Hz × 15 s = 150 rows) ──────────────────────
@@ -625,6 +641,7 @@ const HIREZ_SECONDS  = 15;
 const HIREZ_SAMPLES  = HIREZ_HZ * HIREZ_SECONDS;   // 150
 let hirezTimer = null;
 let hirezCount = 0;
+let graphMarkTime = null;
 
 function startHiRez() {
   if (hirezTimer) return;            // already recording
@@ -716,6 +733,7 @@ function manualMark() {
   if (markCooldown) return;
   const btn = document.getElementById('btn-mark');
   btn.classList.add('active'); btn.disabled = true; markCooldown = true;
+  graphMarkTime = Date.now();
   triggerDetection('manual');
   setTimeout(() => { btn.classList.remove('active'); btn.disabled = false; markCooldown = false; }, 1000);
 }
