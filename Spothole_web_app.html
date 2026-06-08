@@ -42,10 +42,10 @@
 body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 
 /* ── Splash screen ── */
-#splash{position:fixed;inset:0;background:#000;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;animation:splashFade 2s ease-out forwards}
-#splash img{width:88px;height:88px;border-radius:22px;box-shadow:0 8px 32px rgba(0,0,0,.5)}
-#splash .splash-title{color:#fff;font-size:32px;font-weight:600;letter-spacing:-.02em}
-@keyframes splashFade{0%,60%{opacity:1}100%{opacity:0}}
+#splash{position:fixed;inset:0;background:#000;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;animation:splashFade 4s ease-out forwards}
+#splash img{width:140px;height:140px;border-radius:32px;box-shadow:0 12px 48px rgba(0,0,0,.6)}
+#splash .splash-title{color:#fff;font-size:48px;font-weight:600;letter-spacing:-.02em}
+@keyframes splashFade{0%,75%{opacity:1}100%{opacity:0}}
 
 /* ── Hero row: speed + heading ── */
 .hero-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
