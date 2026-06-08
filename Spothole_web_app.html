@@ -41,17 +41,15 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 
-/* ── Header ── */
-.header{background:var(--bg-card);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:10px}
-.logo{width:36px;height:36px;border-radius:9px;overflow:hidden;flex-shrink:0}
-.logo img{width:100%;height:100%;object-fit:cover;display:block}
-.header-text{flex:1}
-.header-title{font-size:17px;font-weight:600;letter-spacing:-.02em}
-.header-sub{font-size:11px;color:var(--text-3);margin-top:1px}
-.header-status{display:flex;align-items:center;gap:5px}
-.hd{width:8px;height:8px;border-radius:50%;background:var(--border-2)}
-.hd.ok{background:#1D9E75}
-.hd.live{background:#E24B4A;animation:pulse .8s ease-in-out infinite alternate}
+/* ── Splash screen ── */
+#splash{position:fixed;inset:0;background:#000;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;animation:splashFade 2s ease-out forwards}
+#splash img{width:88px;height:88px;border-radius:22px;box-shadow:0 8px 32px rgba(0,0,0,.5)}
+#splash .splash-title{color:#fff;font-size:32px;font-weight:600;letter-spacing:-.02em}
+@keyframes splashFade{0%,60%{opacity:1}100%{opacity:0}}
+
+/* ── Hero row: speed + heading ── */
+.hero-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.hero-box{background:var(--bg-metric);border-radius:12px;padding:10px 6px 8px;text-align:center}
 
 /* ── Layout ── */
 .main{padding:12px;display:flex;flex-direction:column;gap:10px;max-width:540px;margin:0 auto}
@@ -63,11 +61,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;ba
 @keyframes potholeFlash{0%,8%{background:#F5A623}100%{background:var(--bg-card)}}
 @keyframes pulse{from{opacity:.4}to{opacity:1}}
 
-/* ── Hero row: speed + heading ── */
-.hero-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
-.hero-box{background:var(--bg-metric);border-radius:12px;padding:14px 10px;text-align:center}
-.hero-val{font-size:38px;font-weight:300;color:var(--text);line-height:1;letter-spacing:-.03em}
-.hero-lbl{font-size:11px;color:var(--text-2);margin-top:5px;font-weight:500;text-transform:uppercase;letter-spacing:.06em}
 
 /* ── X Y Z mini boxes ── */
 .accel-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px}
@@ -161,32 +154,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;ba
 .sync-link{font-size:12px;color:#1a73e8;text-decoration:none;flex-shrink:0}
 </style>
 
-<div class="header">
-  <div class="logo"><img src="Spothole%20logo.jpg" alt="Spot Hole"></div>
-  <div class="header-text">
-    <div class="header-title">Spot Hole</div>
-    <div class="header-sub">GPS + motion pothole logger</div>
-  </div>
-  <div class="header-status">
-    <div class="hd" id="hd-gps"     title="GPS"></div>
-    <div class="hd" id="hd-motion"  title="Motion"></div>
-    <div class="hd" id="hd-running" title="Detecting"></div>
-  </div>
+<!-- Splash screen -->
+<div id="splash">
+  <img src="Spothole%20logo.jpg" alt="Spot Hole">
+  <div class="splash-title">Spot Hole</div>
 </div>
+<!-- Hidden status dot anchors kept for JS compatibility -->
+<span id="hd-gps" style="display:none"></span>
+<span id="hd-motion" style="display:none"></span>
+<span id="hd-running" style="display:none"></span>
 
 <div class="main">
 
   <div class="card" id="sensor-card">
 
-    <!-- Speed + Heading hero -->
+    <!-- Speed + Heading -->
     <div class="hero-row">
       <div class="hero-box">
-        <div class="hero-val" id="spd">—</div>
-        <div class="hero-lbl">mph</div>
+        <div class="accel-reading"><span class="accel-num" id="spd">—</span><span class="accel-tag" style="color:var(--text-2)">mph</span></div>
       </div>
       <div class="hero-box">
-        <div class="hero-val" id="hdg">—</div>
-        <div class="hero-lbl">heading</div>
+        <div class="accel-reading"><span class="accel-num" id="hdg">—</span></div>
       </div>
     </div>
 
@@ -204,37 +192,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;ba
     </div>
 
     <!-- Scrolling waveform graph -->
-    <canvas id="accel-graph" height="72" style="width:100%;border-radius:10px;display:block;margin-bottom:14px;background:var(--bg-metric)"></canvas>
-
-    <!-- X axis bar + slider -->
-    <div class="axis-block">
-      <div class="axis-header">
-        <span class="axis-name x">X lateral G-force</span>
-        <span class="axis-thresh" id="thresh-x-val">1.0g</span>
-      </div>
-      <div class="bar-wrap x"><div class="bar-cover" id="bar-x"></div></div>
-      <input class="axis-slider x" type="range" id="slider-x" min="0.1" max="3" step="0.1" value="1.0" oninput="updateThreshX(this.value)">
-    </div>
-
-    <!-- Y axis bar + slider -->
-    <div class="axis-block">
-      <div class="axis-header">
-        <span class="axis-name y">Y acceleration G-force</span>
-        <span class="axis-thresh" id="thresh-y-val">1.0g</span>
-      </div>
-      <div class="bar-wrap y"><div class="bar-cover" id="bar-y"></div></div>
-      <input class="axis-slider y" type="range" id="slider-y" min="0.1" max="3" step="0.1" value="1.0" oninput="updateThreshY(this.value)">
-    </div>
-
-    <!-- Z axis bar + slider -->
-    <div class="axis-block">
-      <div class="axis-header">
-        <span class="axis-name z">Z pothole G-force</span>
-        <span class="axis-thresh" id="thresh-z-val">1.0g</span>
-      </div>
-      <div class="bar-wrap z"><div class="bar-cover" id="bar-z"></div></div>
-      <input class="axis-slider z" type="range" id="slider-z" min="0.1" max="3" step="0.1" value="1.0" oninput="updateThreshZ(this.value)">
-    </div>
+    <canvas id="accel-graph" height="120" style="width:100%;border-radius:10px;display:block;margin-bottom:14px;background:var(--bg-metric)"></canvas>
 
     <!-- Lat/lon + sensor status dots -->
     <div class="coord-line">
@@ -254,6 +212,34 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;ba
     <button class="btn btn-stop"  id="btn-stop"  onclick="stopDetection()" style="display:none">&#9646;&#9646; Stop</button>
     <button class="btn-mark" id="btn-mark" onclick="manualMark()" disabled>😮 Pothole</button>
     <button class="btn-hr" id="btn-hirez" onclick="startHiRez()">HIGH RES</button>
+  </div>
+
+  <!-- Threshold sliders -->
+  <div class="card">
+    <div class="axis-block">
+      <div class="axis-header">
+        <span class="axis-name x">X lateral G-force</span>
+        <span class="axis-thresh" id="thresh-x-val">1.0g</span>
+      </div>
+      <div class="bar-wrap x"><div class="bar-cover" id="bar-x"></div></div>
+      <input class="axis-slider x" type="range" id="slider-x" min="0.1" max="3" step="0.1" value="1.0" oninput="updateThreshX(this.value)">
+    </div>
+    <div class="axis-block">
+      <div class="axis-header">
+        <span class="axis-name y">Y acceleration G-force</span>
+        <span class="axis-thresh" id="thresh-y-val">1.0g</span>
+      </div>
+      <div class="bar-wrap y"><div class="bar-cover" id="bar-y"></div></div>
+      <input class="axis-slider y" type="range" id="slider-y" min="0.1" max="3" step="0.1" value="1.0" oninput="updateThreshY(this.value)">
+    </div>
+    <div class="axis-block">
+      <div class="axis-header">
+        <span class="axis-name z">Z pothole G-force</span>
+        <span class="axis-thresh" id="thresh-z-val">1.0g</span>
+      </div>
+      <div class="bar-wrap z"><div class="bar-cover" id="bar-z"></div></div>
+      <input class="axis-slider z" type="range" id="slider-z" min="0.1" max="3" step="0.1" value="1.0" oninput="updateThreshZ(this.value)">
+    </div>
   </div>
 
   <button class="btn-share" id="btn-share" onclick="toggleShare()">
@@ -286,6 +272,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;ba
 </div><!-- /main -->
 
 <script>
+// ── Splash ────────────────────────────────────────────────────────────────
+document.getElementById('splash').addEventListener('animationend', function() {
+  this.style.display = 'none';
+});
+
 // ── Config ────────────────────────────────────────────────────────────────
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw-SPX3KVc-UqPVS5IJx_GSkGOYcSt3GqY3xMOb45qVWKQS5NYSZHNj46P5ahjuSZhAuw/exec';
 const SHEET_URL  = 'https://docs.google.com/spreadsheets/d/1BXHayOuxIZd7H8Oqq5NRRxiFq90teX0k2pdfX1N_wmU/edit';
