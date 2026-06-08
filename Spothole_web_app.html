@@ -71,13 +71,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;ba
 
 /* ── X Y Z mini boxes ── */
 .accel-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px}
-.accel-box{background:var(--bg-metric);border-radius:10px;padding:8px 6px;text-align:center}
-.accel-axis{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
-.accel-axis.x{color:var(--gx-c)}
-.accel-axis.y{color:var(--gy-c)}
-.accel-axis.z{color:var(--gz-c)}
-.accel-val{font-size:17px;font-weight:400;color:var(--text);line-height:1}
-.accel-unit{font-size:10px;color:var(--text-3);margin-top:1px}
+.accel-box{background:var(--bg-metric);border-radius:10px;padding:10px 6px 8px;text-align:center}
+.accel-reading{display:flex;align-items:flex-end;justify-content:center;gap:2px}
+.accel-num{font-size:30px;font-weight:300;color:var(--text);line-height:1;letter-spacing:-.02em}
+.accel-tag{font-size:13px;font-weight:700;margin-bottom:3px;text-transform:lowercase}
+.accel-tag.x{color:var(--gx-c)}
+.accel-tag.y{color:var(--gy-c)}
+.accel-tag.z{color:var(--gz-c)}
 
 /* ── Axis bar + slider blocks ── */
 .axis-block{margin-bottom:11px}
@@ -107,6 +107,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;ba
 .pill-dot.live{background:#E24B4A;animation:pulse .8s ease-in-out infinite alternate}
 .session-id{font-size:10px;color:var(--text-3);text-align:right;margin-top:5px}
 
+/* ── Hi-Rez button ── */
+.btn-hirez{background:#1c1c1e;color:#fff;border:1.5px solid #48484a;border-radius:12px;font-size:15px;font-weight:600;padding:14px;cursor:pointer;transition:all .15s;width:100%;letter-spacing:-.01em}
+@media (prefers-color-scheme: dark){.btn-hirez{background:#2c2c2e;border-color:#636366}}
+.btn-hirez.recording{background:#E24B4A;border-color:#E24B4A;animation:pulse .8s ease-in-out infinite alternate}
+.btn-hirez:disabled{opacity:.4;cursor:default}
+
 /* ── Start / Stop ── */
 .btn-row{display:flex;gap:8px}
 .btn{flex:1;padding:14px;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;transition:transform .1s;letter-spacing:-.01em}
@@ -135,6 +141,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;ba
 .badge-auto{background:#FCEBEB;color:#A32D2D}
 .badge-manual{background:#E6F1FB;color:#0C447C}
 .count-badge{display:inline-block;background:#E24B4A;color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;margin-left:6px;vertical-align:middle}
+
+/* ── Share toggle button ── */
+.btn-share{background:var(--bg-card);color:var(--text);border:1.5px solid var(--border);border-radius:12px;font-size:15px;font-weight:600;padding:14px;cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;transition:border-color .15s}
+.btn-share:active{opacity:.7}
+.btn-share .share-chevron{font-size:11px;color:var(--text-3);transition:transform .2s}
+.btn-share.open .share-chevron{transform:rotate(180deg)}
 
 /* ── Export + maps ── */
 .btn-export-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px}
@@ -185,19 +197,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;ba
     <!-- X Y Z values -->
     <div class="accel-row">
       <div class="accel-box">
-        <div class="accel-axis x">X</div>
-        <div class="accel-val" id="xval">—</div>
-        <div class="accel-unit">g lateral</div>
+        <div class="accel-reading"><span class="accel-num" id="xval">—</span><span class="accel-tag x">x</span></div>
       </div>
       <div class="accel-box">
-        <div class="accel-axis y">Y</div>
-        <div class="accel-val" id="yval">—</div>
-        <div class="accel-unit">g fore-aft</div>
+        <div class="accel-reading"><span class="accel-num" id="yval">—</span><span class="accel-tag y">y</span></div>
       </div>
       <div class="accel-box">
-        <div class="accel-axis z">Z</div>
-        <div class="accel-val" id="zval">—</div>
-        <div class="accel-unit">g vertical</div>
+        <div class="accel-reading"><span class="accel-num" id="zval">—</span><span class="accel-tag z">z</span></div>
       </div>
     </div>
 
@@ -207,27 +213,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;ba
     <!-- X axis bar + slider -->
     <div class="axis-block">
       <div class="axis-header">
-        <span class="axis-name x">X lateral</span>
-        <span class="axis-thresh" id="thresh-x-val">1.5g</span>
+        <span class="axis-name x">X lateral G-force</span>
+        <span class="axis-thresh" id="thresh-x-val">1.0g</span>
       </div>
       <div class="bar-wrap x"><div class="bar-cover" id="bar-x"></div></div>
-      <input class="axis-slider x" type="range" id="slider-x" min="0.1" max="3" step="0.1" value="1.5" oninput="updateThreshX(this.value)">
+      <input class="axis-slider x" type="range" id="slider-x" min="0.1" max="3" step="0.1" value="1.0" oninput="updateThreshX(this.value)">
     </div>
 
     <!-- Y axis bar + slider -->
     <div class="axis-block">
       <div class="axis-header">
-        <span class="axis-name y">Y fore-aft</span>
-        <span class="axis-thresh" id="thresh-y-val">1.5g</span>
+        <span class="axis-name y">Y acceleration G-force</span>
+        <span class="axis-thresh" id="thresh-y-val">1.0g</span>
       </div>
       <div class="bar-wrap y"><div class="bar-cover" id="bar-y"></div></div>
-      <input class="axis-slider y" type="range" id="slider-y" min="0.1" max="3" step="0.1" value="1.5" oninput="updateThreshY(this.value)">
+      <input class="axis-slider y" type="range" id="slider-y" min="0.1" max="3" step="0.1" value="1.0" oninput="updateThreshY(this.value)">
     </div>
 
     <!-- Z axis bar + slider -->
     <div class="axis-block">
       <div class="axis-header">
-        <span class="axis-name z">Z vertical</span>
+        <span class="axis-name z">Z pothole G-force</span>
         <span class="axis-thresh" id="thresh-z-val">1.0g</span>
       </div>
       <div class="bar-wrap z"><div class="bar-cover" id="bar-z"></div></div>
@@ -247,6 +253,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;ba
 
   </div><!-- /sensor-card -->
 
+  <button class="btn-hirez" id="btn-hirez" onclick="startHiRez()">&#9210; Hi-Rez &nbsp;·&nbsp; 10 Hz · 15 s burst</button>
+
   <div class="btn-row">
     <button class="btn btn-start" id="btn-start" onclick="startDetection()">&#9654; Start</button>
     <button class="btn btn-stop"  id="btn-stop"  onclick="stopDetection()" style="display:none">&#9646;&#9646; Stop</button>
@@ -256,7 +264,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;ba
     &#128073; Tap to Mark Pothole
   </button>
 
-  <div class="card" id="log-card">
+  <button class="btn-share" id="btn-share" onclick="toggleShare()">
+    &#8679; Share &amp; Export
+    <span class="share-chevron">&#9660;</span>
+  </button>
+
+  <div class="card" id="log-card" style="display:none">
     <div class="card-title">
       Logged potholes
       <span class="count-badge" id="count">0</span>
@@ -396,7 +409,7 @@ if (SHEET_URL && !SHEET_URL.startsWith('YOUR')) {
 let running = false, gpsWatchId = null, motionHandler = null;
 let lastGPS = null, potholes = [];
 let lastX = 0, lastY = 0, lastZ = 0;
-let threshX = 1.5, threshY = 1.5, threshZ = 1.0;
+let threshX = 1.0, threshY = 1.0, threshZ = 1.0;
 let cooldown = false, markCooldown = false;
 let pendingRows = [], flushTimer = null, totalSynced = 0;
 let motionPermissionGranted = false;
@@ -541,17 +554,17 @@ function attachMotionHandler() {
 }
 
 // ── Throttled display + scrolling graph (4 Hz) ────────────────────────────
-const GRAPH_LEN = 40;   // samples shown (~10 s at 4 Hz)
+const GRAPH_LEN = 30;   // samples shown (~15 s at 2 Hz)
 const gBuf = { x: new Array(GRAPH_LEN).fill(0), y: new Array(GRAPH_LEN).fill(0), z: new Array(GRAPH_LEN).fill(0) };
 let displayTimer = null;
 
 function startDisplay() {
   if (displayTimer) return;
   displayTimer = setInterval(() => {
-    // Update numeric readouts
-    document.getElementById('xval').textContent = lastX.toFixed(2);
-    document.getElementById('yval').textContent = lastY.toFixed(2);
-    document.getElementById('zval').textContent = lastZ.toFixed(2);
+    // Update numeric readouts at 2 Hz — easy on CPU/battery
+    document.getElementById('xval').textContent = lastX.toFixed(1);
+    document.getElementById('yval').textContent = lastY.toFixed(1);
+    document.getElementById('zval').textContent = lastZ.toFixed(1);
     // Update bars
     document.getElementById('bar-x').style.width = Math.max(0, 100 - Math.min(100, (lastX / threshX) * 100)) + '%';
     document.getElementById('bar-y').style.width = Math.max(0, 100 - Math.min(100, (lastY / threshY) * 100)) + '%';
@@ -561,7 +574,7 @@ function startDisplay() {
     gBuf.y.push(lastY); gBuf.y.shift();
     gBuf.z.push(lastZ); gBuf.z.shift();
     drawGraph();
-  }, 250);
+  }, 500);   // 2 Hz display refresh
 }
 
 function stopDisplay() {
@@ -623,6 +636,68 @@ function drawGraph() {
   });
 }
 
+// ── Hi-Rez burst recorder (10 Hz × 15 s = 150 rows) ──────────────────────
+const HIREZ_HZ       = 10;
+const HIREZ_SECONDS  = 15;
+const HIREZ_SAMPLES  = HIREZ_HZ * HIREZ_SECONDS;   // 150
+let hirezTimer = null;
+let hirezCount = 0;
+
+function startHiRez() {
+  if (hirezTimer) return;            // already recording
+  const btn = document.getElementById('btn-hirez');
+  btn.classList.add('recording');
+  btn.disabled = true;
+  hirezCount = 0;
+  const remaining = { v: HIREZ_SECONDS };
+
+  hirezTimer = setInterval(() => {
+    // Sample at 10 Hz
+    const c = lastGPS ? lastGPS.coords : null;
+    const row = {
+      session_id:      SESSION_ID,
+      time:            new Date().toISOString(),
+      lat:             c ? c.latitude  : null,
+      lon:             c ? c.longitude : null,
+      speed_mph:       c && c.speed != null && c.speed >= 0 ? parseFloat(mpsToMph(c.speed)) : 0,
+      heading_deg:     c && c.heading != null ? Math.round(c.heading) : null,
+      heading_compass: c && c.heading != null ? degToCompass(c.heading) : '—',
+      x_accel_g:       parseFloat(lastX.toFixed(3)),
+      y_accel_g:       parseFloat(lastY.toFixed(3)),
+      z_accel_g:       parseFloat(lastZ.toFixed(3)),
+      type:            'hirez',
+      device:          DEVICE
+    };
+    pendingRows.push(row);
+    hirezCount++;
+
+    // Update button label every second (every 10 samples)
+    if (hirezCount % HIREZ_HZ === 0) {
+      remaining.v = HIREZ_SECONDS - hirezCount / HIREZ_HZ;
+      btn.textContent = `● REC  ${remaining.v}s remaining`;
+    }
+
+    if (hirezCount >= HIREZ_SAMPLES) {
+      clearInterval(hirezTimer);
+      hirezTimer = null;
+      btn.classList.remove('recording');
+      btn.disabled = false;
+      btn.textContent = '⏺ Hi-Rez · 10 Hz · 15 s burst';
+      // Flush immediately — don't wait for the 10s schedule
+      clearTimeout(flushTimer); flushTimer = null;
+      flushToSheet();
+      // Persist to localStorage under hirez key for today
+      try {
+        const key = 'spothole_hirez_' + getDateKey();
+        const existing = JSON.parse(localStorage.getItem(key) || '[]');
+        const fresh = pendingRows.filter(r => r.type === 'hirez');  // already spliced if flush ran
+        localStorage.setItem(key, JSON.stringify([...existing, ...fresh]));
+      } catch(e) {}
+      setSyncStatus('busy', `Hi-Rez: ${HIREZ_SAMPLES} rows queued…`);
+    }
+  }, 1000 / HIREZ_HZ);   // 100 ms interval
+}
+
 // ── Detection ─────────────────────────────────────────────────────────────
 function triggerDetection(type) {
   cooldown = true;
@@ -678,7 +753,7 @@ function addLogItem(e) {
     <div class="log-dot ${e.type==='auto'?'dot-auto':'dot-manual'}"></div>
     <div class="log-info">
       <div class="log-coords">${latStr}${lonStr ? ', '+lonStr : ''}</div>
-      <div class="log-meta">${t} &middot; ${e.speed_mph} mph &middot; ${e.heading_compass} &middot; peak ${peak.toFixed(2)}g (${axis})<span class="log-badge ${e.type==='auto'?'badge-auto':'badge-manual'}">${e.type}</span></div>
+      <div class="log-meta">${t} &middot; ${e.speed_mph} mph &middot; ${e.heading_compass} &middot; peak ${peak.toFixed(1)}g (${axis})<span class="log-badge ${e.type==='auto'?'badge-auto':'badge-manual'}">${e.type}</span></div>
     </div>`;
   log.insertBefore(div, log.firstChild);
 }
@@ -744,6 +819,14 @@ function download(name, content, type) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([content],{type}));
   a.download = name; a.click();
+}
+
+function toggleShare() {
+  const card = document.getElementById('log-card');
+  const btn  = document.getElementById('btn-share');
+  const open = card.style.display === 'none';
+  card.style.display = open ? '' : 'none';
+  btn.classList.toggle('open', open);
 }
 
 function clearLog() {
