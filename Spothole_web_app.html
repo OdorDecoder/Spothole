@@ -533,9 +533,9 @@ async function flushToSheet() {
     ]);
     totalSynced += rows.length;
     // GET real row count from events sheet for confirmed feedback
-    const count    = await fetchSheetCount();
-    const countStr = count != null ? ` · ${count} in sheet` : '';
-    setSyncStatus('ok', `Synced ${new Date().toLocaleTimeString()}${countStr}`);
+    const count     = await fetchSheetCount();
+    const sheetStr  = count != null ? ' · sheet live ✓' : '';
+    setSyncStatus('ok', `Synced ${new Date().toLocaleTimeString()}${sheetStr}`);
   } catch(err) {
     pendingRows.unshift(...rows);
     setSyncStatus('err', 'Sync failed — will retry');
@@ -609,9 +609,11 @@ const POST_BUF_SIZE = 60;  // ~1000ms at 60 Hz — captures full suspension ring
 let preBuf     = [];       // rolling ring of {time,x,y,z} tuples
 let postCapture = null;    // {bumpId, remaining} when collecting post-trigger
 
-// ── HIGH RES continuous logging ───────────────────────────
-let highResActive = false;
-let highResTimer  = null;
+// ── HIGH RES burst logging ────────────────────────────────
+let highResActive            = false;
+let highResTimer             = null;
+let highResCountdownInterval = null;
+let highResCountdown         = 0;
 
 let isRecording = false;
 
@@ -641,30 +643,43 @@ function manualBump() {
   triggerDetection('manual', '');
 }
 
-// ── HIGH RES toggle ───────────────────────────────────────
+// ── HIGH RES 10-second timed burst ───────────────────────
 function stopHighRes() {
   highResActive = false;
-  if (highResTimer) { clearInterval(highResTimer); highResTimer = null; }
+  if (highResTimer)             { clearInterval(highResTimer);             highResTimer = null; }
+  if (highResCountdownInterval) { clearInterval(highResCountdownInterval); highResCountdownInterval = null; }
   const btn = document.getElementById('highResBtn');
   if (btn) { btn.style.background = '#1a1a1a'; btn.textContent = 'HIGH RES'; }
+  if (pendingRows.length) scheduleFlush();
 }
 
 function toggleHighRes() {
   if (!isRecording) return;
-  highResActive = !highResActive;
+  if (highResActive) { stopHighRes(); return; } // tap again = cancel early
+
+  highResActive    = true;
+  highResCountdown = 10;
   const btn = document.getElementById('highResBtn');
-  if (highResActive) {
-    btn.style.background = '#e67e22';
-    btn.textContent = 'HIGH RES ●';
-    highResTimer = setInterval(() => {
-      if (!isRecording) { stopHighRes(); return; }
-      pendingRows.push(makeRow('continuous', ''));
-      // batch flush every 50 rows to avoid huge queues
-      if (pendingRows.length >= 50) scheduleFlush();
-    }, 100); // 10 Hz
-  } else {
-    stopHighRes();
-  }
+  btn.style.background = '#e67e22';
+  btn.textContent      = 'HIGH RES 10';
+
+  // 10 Hz data collection
+  highResTimer = setInterval(() => {
+    if (!isRecording) { stopHighRes(); return; }
+    pendingRows.push(makeRow('continuous', ''));
+    if (pendingRows.length >= 50) scheduleFlush();
+  }, 100);
+
+  // 1 Hz countdown display + auto-stop at 0
+  highResCountdownInterval = setInterval(() => {
+    highResCountdown--;
+    const b = document.getElementById('highResBtn');
+    if (highResCountdown > 0) {
+      b.textContent = `HIGH RES ${highResCountdown}`;
+    } else {
+      stopHighRes(); // auto-stop after 10 s
+    }
+  }, 1000);
 }
 
 // ── GPS ───────────────────────────────────────────────────
