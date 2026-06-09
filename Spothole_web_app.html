@@ -101,7 +101,7 @@
   canvas#graph {
     display: block;
     width: 100%;
-    height: 95px;
+    height: 115px;
   }
   .graph-legend {
     position: absolute;
@@ -132,12 +132,6 @@
   .status-label { color: #aaa; font-size: 14px; }
   .status-dots { display: flex; gap: 5px; }
   .sdot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; }
-  .session-label {
-    color: #bbb;
-    font-size: 11px;
-    text-align: right;
-    margin-top: 3px;
-  }
 
   /* ── SpotOn overlay ── */
   .spoton-overlay {
@@ -346,7 +340,6 @@
         <div class="sdot"></div>
       </div>
     </div>
-    <div class="session-label">sess_20260608_161345</div>
   </div>
 
   <!-- ── Buttons ── -->
@@ -415,7 +408,7 @@ const ctx    = canvas.getContext('2d');
 function resizeCanvas() {
   const wrap = canvas.parentElement;
   canvas.width  = (wrap.offsetWidth || 358) - 16;
-  canvas.height = 95;
+  canvas.height = 115;
 }
 window.addEventListener('load',   resizeCanvas);
 window.addEventListener('resize', resizeCanvas);
@@ -437,15 +430,16 @@ let fadeTimer  = null;
 function triggerSpotOn(color) {
   if (spotActive) return;
   spotActive = true;
+  overlay.style.transition = 'none';
   overlay.style.background = color || '#ff6500';
-  overlay.style.transition = 'opacity 0.1s ease-in';
   overlay.style.opacity    = '1';
   if (fadeTimer) clearTimeout(fadeTimer);
+  // Let the browser paint the solid overlay first, then fade out over 2s
   fadeTimer = setTimeout(() => {
     overlay.style.transition = 'opacity 2s ease-out';
     overlay.style.opacity    = '0';
     setTimeout(() => { spotActive = false; }, 2000);
-  }, 0);
+  }, 150);
 }
 
 function manualBump() {
