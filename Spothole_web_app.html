@@ -369,77 +369,72 @@
         <span class="slider-label x">X Lateral G-Force</span>
         <span class="slider-val" id="xValLbl">0.8g</span>
       </div>
-      <input type="range" class="sx" id="xSlider" min="0.1" max="3" step="0.1" value="0.8"
-        oninput="onSlider(this,'xValLbl','#1a6fd4')">
+      <input type="range" class="sx" id="xSlider" min="0.1" max="3" step="0.1" value="0.8">
     </div>
     <div class="slider-row">
       <div class="slider-header">
         <span class="slider-label y">Y Acceleration G-Force</span>
         <span class="slider-val" id="yValLbl">1.3g</span>
       </div>
-      <input type="range" class="sy" id="ySlider" min="0.1" max="3" step="0.1" value="1.3"
-        oninput="onSlider(this,'yValLbl','#27ae60')">
+      <input type="range" class="sy" id="ySlider" min="0.1" max="3" step="0.1" value="1.3">
     </div>
     <div class="slider-row">
       <div class="slider-header">
         <span class="slider-label z">Z Pothole G-Force</span>
         <span class="slider-val" id="zValLbl">0.6g</span>
       </div>
-      <input type="range" class="sz" id="zSlider" min="0.1" max="3" step="0.1" value="0.6"
-        oninput="onSlider(this,'zValLbl','#e74c3c')">
+      <input type="range" class="sz" id="zSlider" min="0.1" max="3" step="0.1" value="0.6">
     </div>
   </div>
 
 </div>
 
 <script>
-// ── Canvas ──────────────────────────────────────────────
+// ── Thresholds (declared first so nothing is undefined) ──
+let xThreshold = 0.8;
+let yThreshold = 1.3;
+let zThreshold = 0.6;
+
+// ── Canvas ───────────────────────────────────────────────
 const canvas = document.getElementById('graph');
 const ctx    = canvas.getContext('2d');
 
 function resizeCanvas() {
   const wrap = canvas.parentElement;
-  const w = wrap.offsetWidth || 340;
-  canvas.width  = w - 16;
+  canvas.width  = (wrap.offsetWidth || 358) - 16;
   canvas.height = 95;
 }
 window.addEventListener('load',   resizeCanvas);
 window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
+setTimeout(resizeCanvas, 50); // fallback after first paint
 
-// ── Data ────────────────────────────────────────────────
-const N = 120;
+// ── Buffers ──────────────────────────────────────────────
+const N    = 100;
 const xBuf = new Float32Array(N);
 const yBuf = new Float32Array(N);
 const zBuf = new Float32Array(N);
 
 let isRecording = false;
 let cooldown    = 0;
-let bumpFrames  = 0;          // frames remaining in bump pulse
+let bumpFrames  = 0;
 let bumpX = 0, bumpY = 0, bumpZ = 0;
 
 const DIRS = ['N','NE','E','SE','S','SW','W','NW'];
 let dirIdx = 2;
 
-// ── SpotOn ──────────────────────────────────────────────
-const overlay   = document.getElementById('spotonOverlay');
-let spotActive  = false;
-let fadeTimer   = null;
-let fadeStart   = null;
+// ── SpotOn overlay ───────────────────────────────────────
+const overlay  = document.getElementById('spotonOverlay');
+let spotActive = false;
+let fadeTimer  = null;
 
 function triggerSpotOn() {
   if (spotActive) return;
   spotActive = true;
-
-  // Pick a vivid color each time
   const colors = ['#ff6500','#e60040','#7c00cc','#0077cc','#007a3d'];
   overlay.style.background = colors[Math.floor(Math.random() * colors.length)];
   overlay.style.transition = 'opacity 0.15s ease-in';
   overlay.style.opacity    = '1';
-
   if (fadeTimer) clearTimeout(fadeTimer);
-
-  // Show 2.5s → fade 1.5s = 4s total
   fadeTimer = setTimeout(() => {
     overlay.style.transition = 'opacity 1.5s ease-out';
     overlay.style.opacity    = '0';
@@ -448,96 +443,101 @@ function triggerSpotOn() {
 }
 
 function manualBump() {
+  if (!isRecording) return;
   triggerSpotOn();
-  // inject a bump into the data stream
-  bumpX = (Math.random() - 0.5) * 3.0;
-  bumpY = (Math.random() - 0.5) * 1.5;
-  bumpZ = Math.random() * 2.8;
-  bumpFrames = 8;
+  bumpX = (Math.random() - 0.5) * xThreshold * 2.5;
+  bumpY = (Math.random() - 0.5) * yThreshold * 2.5;
+  bumpZ = (Math.random() * 0.7 + 0.3) * zThreshold * 2.5;
+  bumpFrames = 12;
 }
 
-// ── Simulate data ────────────────────────────────────────
-// Realistic idle road noise ~0.05-0.20g, bumps up to threshold
-const rng = () => (Math.random() - 0.5) * 0.30;
-
+// ── Simulate sensor ──────────────────────────────────────
 function tick() {
-  let x = rng(), y = rng(), z = Math.abs(rng()) * 0.5; // z always positive
+  // baseline road noise: ~10% of each threshold
+  let x = (Math.random() - 0.5) * xThreshold * 0.20;
+  let y = (Math.random() - 0.5) * yThreshold * 0.20;
+  let z = Math.random()          * zThreshold * 0.15;
 
-  // Auto-bump (always active so graph is live; more frequent when recording)
-  const bumpChance = isRecording ? 0.018 : 0.006;
+  // occasional auto-bump
   if (cooldown > 0) {
     cooldown--;
-  } else if (Math.random() < bumpChance) {
+  } else if (Math.random() < 0.015) {
     bumpX = (Math.random() - 0.5) * xThreshold * 2.2;
     bumpY = (Math.random() - 0.5) * yThreshold * 2.2;
-    bumpZ = Math.random() * zThreshold * 2.5 + zThreshold * 0.3;
-    bumpFrames = 10;
-    cooldown   = isRecording ? 40 : 80;
-    if (isRecording) triggerSpotOn();
+    bumpZ = (Math.random() * 0.7 + 0.3) * zThreshold * 2.2;
+    bumpFrames = 12;
+    cooldown   = 50;
+    triggerSpotOn();
   }
 
   if (bumpFrames > 0) {
-    const env = bumpFrames / 10;
+    const env = bumpFrames / 12;
     x += bumpX * env;
     y += bumpY * env;
     z += bumpZ * env;
     bumpFrames--;
   }
 
-  // Shift buffer
   xBuf.copyWithin(0, 1); xBuf[N-1] = x;
   yBuf.copyWithin(0, 1); yBuf[N-1] = y;
   zBuf.copyWithin(0, 1); zBuf[N-1] = z;
 
-  // Update readouts
   document.getElementById('xVal').textContent = Math.abs(x).toFixed(1);
   document.getElementById('yVal').textContent = Math.abs(y).toFixed(1);
   document.getElementById('zVal').textContent = Math.abs(z).toFixed(1);
 
-  if (isRecording) {
-    const spd = (Math.random() * 3 + 0.5).toFixed(1);
-    document.getElementById('speedVal').textContent = spd;
-    if (Math.random() < 0.01) {
-      dirIdx = (dirIdx + (Math.random() < 0.5 ? 1 : -1) + 8) % 8;
-      document.getElementById('dirVal').textContent = DIRS[dirIdx];
-    }
+  const spd = (Math.random() * 3 + 0.5).toFixed(1);
+  document.getElementById('speedVal').textContent = spd;
+  if (Math.random() < 0.01) {
+    dirIdx = (dirIdx + (Math.random() < 0.5 ? 1 : -1) + 8) % 8;
+    document.getElementById('dirVal').textContent = DIRS[dirIdx];
   }
 }
 
 // ── Draw graph ───────────────────────────────────────────
 function drawGraph() {
   const w = canvas.width, h = canvas.height;
-  ctx.clearRect(0, 0, w, h);
+  if (w < 2) return; // not yet laid out
 
-  // background
+  ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = '#efefef';
   ctx.fillRect(0, 0, w, h);
 
-  // dashed top reference line
+  if (!isRecording) {
+    // flat baseline when stopped
+    ctx.save();
+    ctx.strokeStyle = '#ccc';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(0, h - 4); ctx.lineTo(w, h - 4); ctx.stroke();
+    ctx.restore();
+    return;
+  }
+
+  // dashed threshold line near top
   ctx.save();
   ctx.strokeStyle = '#d0d0d0';
-  ctx.lineWidth   = 1;
+  ctx.lineWidth = 1;
   ctx.setLineDash([5, 5]);
-  ctx.beginPath(); ctx.moveTo(0, h * 0.15); ctx.lineTo(w, h * 0.15); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, h * 0.12); ctx.lineTo(w, h * 0.12); ctx.stroke();
   ctx.restore();
 
-  // draw each axis
-  const bufs   = [xBuf, yBuf, zBuf];
-  const colors = ['#1a6fd4','#27ae60','#e74c3c'];
-
-  const maxVals = [xThreshold, yThreshold, zThreshold];
+  const bufs      = [xBuf, yBuf, zBuf];
+  const colors    = ['#1a6fd4', '#27ae60', '#e74c3c'];
+  const thresholds = [xThreshold, yThreshold, zThreshold];
 
   bufs.forEach((buf, i) => {
-    const axisMax = maxVals[i];
+    const tMax = thresholds[i];
     ctx.save();
     ctx.strokeStyle = colors[i];
-    ctx.lineWidth   = 3.8;
+    ctx.lineWidth   = 3.5;
     ctx.lineJoin    = 'round';
     ctx.lineCap     = 'round';
     ctx.beginPath();
     for (let j = 0; j < N; j++) {
-      const px = (j / (N - 1)) * w;
-      const py = h - 3 - (Math.min(Math.abs(buf[j]), axisMax) / axisMax) * (h - 6) * 0.92;
+      const px   = (j / (N - 1)) * w;
+      const norm = Math.min(Math.abs(buf[j]) / tMax, 1.0);
+      const py   = (h - 4) - norm * (h - 8) * 0.88;
       j === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
     }
     ctx.stroke();
@@ -550,50 +550,59 @@ let frame = 0;
 function loop() {
   requestAnimationFrame(loop);
   frame++;
-  if (frame % 4 === 0) tick();  // always live
+  if (isRecording && frame % 3 === 0) tick();
   drawGraph();
 }
 loop();
 
-// ── Recording toggle ──────────────────────────────────────
+// ── Recording toggle ─────────────────────────────────────
 function toggleRecording() {
   isRecording = !isRecording;
-  const btn    = document.getElementById('startBtn');
-  const status = document.getElementById('statusText');
+  const btn = document.getElementById('startBtn');
   if (isRecording) {
     btn.style.background = '#e74c3c';
     document.getElementById('startIcon').textContent  = '⏹';
     document.getElementById('startLabel').textContent = 'Stop';
-    status.textContent = 'Recording';
+    document.getElementById('statusText').textContent = 'Recording';
+    // clear stale data
+    xBuf.fill(0); yBuf.fill(0); zBuf.fill(0);
+    cooldown = 0; bumpFrames = 0;
   } else {
     btn.style.background = '#2ecc71';
     document.getElementById('startIcon').textContent  = '▶';
     document.getElementById('startLabel').textContent = 'Start';
-    status.textContent = 'Stopped';
+    document.getElementById('statusText').textContent = 'Stopped';
+    document.getElementById('xVal').textContent = '0.0';
+    document.getElementById('yVal').textContent = '0.0';
+    document.getElementById('zVal').textContent = '0.0';
   }
 }
 
 // ── Sliders ──────────────────────────────────────────────
-function onSlider(input, labelId, color) {
+function onSlider(input, labelId, color, threshKey) {
   const v   = parseFloat(input.value);
   const pct = ((v - 0.1) / (3 - 0.1)) * 100;
   input.style.background =
     `linear-gradient(to right, ${color} 0%, ${color} ${pct}%, #d8d8d8 ${pct}%, #d8d8d8 100%)`;
   document.getElementById(labelId).textContent = v.toFixed(1) + 'g';
+  if (threshKey === 'x') xThreshold = v;
+  if (threshKey === 'y') yThreshold = v;
+  if (threshKey === 'z') zThreshold = v;
 }
 
-// Init slider fills on load
-(function initSliders() {
+window.addEventListener('load', () => {
   const cfg = [
-    { id: 'xSlider', lbl: 'xValLbl', color: '#1a6fd4' },
-    { id: 'ySlider', lbl: 'yValLbl', color: '#27ae60' },
-    { id: 'zSlider', lbl: 'zValLbl', color: '#e74c3c' },
+    { id: 'xSlider', lbl: 'xValLbl', color: '#1a6fd4', key: 'x' },
+    { id: 'ySlider', lbl: 'yValLbl', color: '#27ae60', key: 'y' },
+    { id: 'zSlider', lbl: 'zValLbl', color: '#e74c3c', key: 'z' },
   ];
-  cfg.forEach(({ id, lbl, color }) => {
+  cfg.forEach(({ id, lbl, color, key }) => {
     const el = document.getElementById(id);
-    onSlider(el, lbl, color);
+    el.oninput = () => onSlider(el, lbl, color, key);
+    onSlider(el, lbl, color, key);
   });
-})();
+  resizeCanvas();
+});
 </script>
 </body>
 </html>
