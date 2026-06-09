@@ -482,26 +482,60 @@ function scheduleFlush() {
   flushTimer = setTimeout(() => { flushTimer = null; flushToSheet(); }, 8000);
 }
 
+// Route rows to the correct sheet tab by type
+const SHEET_EVENTS    = () => getDateKey() + '_events';
+const SHEET_WAVEFORMS = () => getDateKey() + '_waveforms';
+const SHEET_HIGHRES   = () => getDateKey() + '_highres';
+
+function rowToArray(p) {
+  return [
+    p.session_id, p.time, p.lat ?? '', p.lon ?? '',
+    p.speed_mph, p.heading_deg ?? '', p.heading_compass,
+    p.x_accel_g, p.y_accel_g, p.z_accel_g, p.type, p.device, p.bump_id ?? ''
+  ];
+}
+
+async function postRows(sheetName, rows) {
+  if (!rows.length) return;
+  // no-cors: response is opaque but network errors still throw
+  await fetch(SCRIPT_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    body: JSON.stringify({ secret: SECRET, sheetName, rows: rows.map(rowToArray) })
+  });
+}
+
+async function fetchSheetCount() {
+  try {
+    const r = await fetch(`${SCRIPT_URL}?date=${getDateKey()}&type=events`);
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j.rows ?? null;
+  } catch(e) {
+    return null;
+  }
+}
+
 async function flushToSheet() {
   if (!pendingRows.length) return;
   const rows = pendingRows.splice(0);
+
+  const eventsRows   = rows.filter(p => ['auto','manual','session_start'].includes(p.type));
+  const waveformRows = rows.filter(p => ['pre_bump','post_bump'].includes(p.type));
+  const highresRows  = rows.filter(p => p.type === 'continuous');
+
   setSyncStatus('', `Syncing ${rows.length} row(s)…`);
   try {
-    await fetch(SCRIPT_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      body: JSON.stringify({
-        secret: SECRET,
-        sheetName: getDateKey() + '_SpotholeData',
-        rows: rows.map(p => [
-          p.session_id, p.time, p.lat ?? '', p.lon ?? '',
-          p.speed_mph, p.heading_deg ?? '', p.heading_compass,
-          p.x_accel_g, p.y_accel_g, p.z_accel_g, p.type, p.device, p.bump_id ?? ''
-        ])
-      })
-    });
+    await Promise.all([
+      postRows(SHEET_EVENTS(),    eventsRows),
+      postRows(SHEET_WAVEFORMS(), waveformRows),
+      postRows(SHEET_HIGHRES(),   highresRows),
+    ]);
     totalSynced += rows.length;
-    setSyncStatus('ok', `Synced · ${totalSynced} rows · ${new Date().toLocaleTimeString()}`);
+    // GET real row count from events sheet for confirmed feedback
+    const count    = await fetchSheetCount();
+    const countStr = count != null ? ` · ${count} in sheet` : '';
+    setSyncStatus('ok', `Synced ${new Date().toLocaleTimeString()}${countStr}`);
   } catch(err) {
     pendingRows.unshift(...rows);
     setSyncStatus('err', 'Sync failed — will retry');
@@ -814,6 +848,10 @@ function toggleRecording() {
     xBuf.fill(0); yBuf.fill(0); zBuf.fill(0);
     lastX = 0; lastY = 0; lastZ = 0;
     detectionCooldown = false;
+    preBuf = []; postCapture = null;
+    // Write session header immediately — creates the tab and confirms connectivity
+    pendingRows.push(makeRow('session_start', ''));
+    flushToSheet();
     startGPS();
     requestMotion();
   } else {

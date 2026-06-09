@@ -56,23 +56,42 @@ function doPost(e) {
   }
 }
 
-function getTodayName() {
+function getDateKey() {
   const d = new Date();
-  return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_SpotholeData`;
+  return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// ── GET endpoint — returns real row count for a sheet tab ─────────────────
+// URL: <SCRIPT_URL>?date=YYYYMMDD&type=events   (type = events|waveforms|highres)
+// No secret required — read-only, row counts only.
+function doGet(e) {
+  try {
+    const date  = (e.parameter && e.parameter.date)  || getDateKey();
+    const type  = (e.parameter && e.parameter.type)  || 'events';
+    const sheetName = date + '_' + type;
+    const ss    = SpreadsheetApp.openById(SHEET_ID);
+    const sheet = ss.getSheetByName(sheetName);
+    const rows  = sheet ? Math.max(0, sheet.getLastRow() - 1) : 0; // subtract header
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: true, sheet: sheetName, rows }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ error: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 }
 
 // ── Test this script manually ─────────────────────────────────────────────
-// Run testPost() from the editor to verify it can write to your sheet
-// before deploying.
 function testPost() {
   const result = doPost({
     postData: {
       contents: JSON.stringify({
         secret: SECRET,
-        sheetName: getTodayName(),
+        sheetName: getDateKey() + '_events',
         rows: [
           ['test_session','2024-01-01T00:00:00Z',40.7128,-74.0060,
-           25.5,180,'S',0.05,'spot_check','Test / Script']
+           25.5,180,'S',0.05,0.02,0.87,'session_start','Test / Script','']
         ]
       })
     }
