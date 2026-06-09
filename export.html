@@ -279,14 +279,15 @@ function dateTag() {
 // ── CSV ───────────────────────────────────────────────────
 function exportCSV() {
   const cols = ['session_id','time','latitude','longitude','speed_mph',
-                'heading_deg','heading_compass','x_accel_g','y_accel_g','z_accel_g','type','device'];
+                'heading_deg','heading_compass','x_accel_g','y_accel_g','z_accel_g','type','device','bump_id'];
   const rows = [cols.join(',')];
   currentData.forEach(p => {
     rows.push([
       p.session_id, p.time, p.lat ?? '', p.lon ?? '',
       p.speed_mph, p.heading_deg ?? '', p.heading_compass,
       p.x_accel_g, p.y_accel_g, p.z_accel_g, p.type,
-      `"${(p.device || '').replace(/"/g,'""')}"`
+      `"${(p.device || '').replace(/"/g,'""')}"`,
+      p.bump_id ?? ''
     ].join(','));
   });
   download(`spothole_${dateTag()}.csv`, rows.join('\r\n'), 'text/csv');

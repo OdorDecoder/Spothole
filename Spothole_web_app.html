@@ -383,7 +383,7 @@
       <span class="pothole-emoji">&#x1F632;</span>
       <span>Pothole</span>
     </button>
-    <button class="btn-highres">HIGH RES</button>
+    <button class="btn-highres" id="highResBtn" onclick="toggleHighRes()">HIGH RES</button>
   </div>
 
   <!-- ── Sliders ── -->
@@ -496,7 +496,7 @@ async function flushToSheet() {
         rows: rows.map(p => [
           p.session_id, p.time, p.lat ?? '', p.lon ?? '',
           p.speed_mph, p.heading_deg ?? '', p.heading_compass,
-          p.x_accel_g, p.y_accel_g, p.z_accel_g, p.type, p.device
+          p.x_accel_g, p.y_accel_g, p.z_accel_g, p.type, p.device, p.bump_id ?? ''
         ])
       })
     });
@@ -522,22 +522,27 @@ function persistToday() {
   } catch(e) {}
 }
 
-function triggerDetection(type) {
+function makeRow(type, bumpId, timeOverride, xOverride, yOverride, zOverride) {
   const c = lastGPS ? lastGPS.coords : null;
-  const entry = {
+  return {
     session_id:      SESSION_ID,
-    time:            new Date().toISOString(),
+    time:            timeOverride || new Date().toISOString(),
     lat:             c ? c.latitude  : null,
     lon:             c ? c.longitude : null,
     speed_mph:       c && c.speed != null ? parseFloat(mpsToMph(c.speed)) : 0,
     heading_deg:     c && c.heading != null ? Math.round(c.heading) : null,
     heading_compass: c && c.heading != null ? degToCompass(c.heading) : '—',
-    x_accel_g:       parseFloat(lastX.toFixed(3)),
-    y_accel_g:       parseFloat(lastY.toFixed(3)),
-    z_accel_g:       parseFloat(lastZ.toFixed(3)),
+    x_accel_g:       parseFloat((xOverride != null ? xOverride : lastX).toFixed(3)),
+    y_accel_g:       parseFloat((yOverride != null ? yOverride : lastY).toFixed(3)),
+    z_accel_g:       parseFloat((zOverride != null ? zOverride : lastZ).toFixed(3)),
     type,
-    device: DEVICE
+    device:  DEVICE,
+    bump_id: bumpId || ''
   };
+}
+
+function triggerDetection(type, bumpId) {
+  const entry = makeRow(type, bumpId || '');
   potholes.push(entry);
   pendingRows.push(entry);
   updateExportCount();
@@ -564,6 +569,16 @@ const xBuf = new Float32Array(N);
 const yBuf = new Float32Array(N);
 const zBuf = new Float32Array(N);
 
+// ── Waveform capture buffers ──────────────────────────────
+const PRE_BUF_SIZE  = 30;  // ~500ms at 60 Hz — covers bump onset with >5× margin
+const POST_BUF_SIZE = 60;  // ~1000ms at 60 Hz — captures full suspension ring-down
+let preBuf     = [];       // rolling ring of {time,x,y,z} tuples
+let postCapture = null;    // {bumpId, remaining} when collecting post-trigger
+
+// ── HIGH RES continuous logging ───────────────────────────
+let highResActive = false;
+let highResTimer  = null;
+
 let isRecording = false;
 
 // ── SpotOn overlay ───────────────────────────────────────
@@ -589,7 +604,33 @@ function triggerSpotOn(color) {
 function manualBump() {
   if (!isRecording) return;
   triggerSpotOn('#e74c3c'); // manual = Z/pothole color
-  triggerDetection('manual');
+  triggerDetection('manual', '');
+}
+
+// ── HIGH RES toggle ───────────────────────────────────────
+function stopHighRes() {
+  highResActive = false;
+  if (highResTimer) { clearInterval(highResTimer); highResTimer = null; }
+  const btn = document.getElementById('highResBtn');
+  if (btn) { btn.style.background = '#1a1a1a'; btn.textContent = 'HIGH RES'; }
+}
+
+function toggleHighRes() {
+  if (!isRecording) return;
+  highResActive = !highResActive;
+  const btn = document.getElementById('highResBtn');
+  if (highResActive) {
+    btn.style.background = '#e67e22';
+    btn.textContent = 'HIGH RES ●';
+    highResTimer = setInterval(() => {
+      if (!isRecording) { stopHighRes(); return; }
+      pendingRows.push(makeRow('continuous', ''));
+      // batch flush every 50 rows to avoid huge queues
+      if (pendingRows.length >= 50) scheduleFlush();
+    }, 100); // 10 Hz
+  } else {
+    stopHighRes();
+  }
 }
 
 // ── GPS ───────────────────────────────────────────────────
@@ -634,21 +675,49 @@ function attachMotion() {
     lastX = toG(ag.x);
     lastY = toG(ag.z);  // physical Z (front/back) → Y Acceleration slot
     lastZ = toG(ag.y);  // physical Y (up/down)    → Z Pothole slot
-    // Threshold detection at full sensor rate
-    if (isRecording && !detectionCooldown) {
-      // Determine which axis triggered — pick the one most over its threshold
-      const xOver = lastX / xThreshold;
-      const yOver = lastY / yThreshold;
-      const zOver = lastZ / zThreshold;
-      const maxOver = Math.max(xOver, yOver, zOver);
-      if (maxOver >= 1.0) {
-        detectionCooldown = true;
-        setTimeout(() => { detectionCooldown = false; }, 2000);
-        const axisColor = xOver === maxOver ? '#1a6fd4'   // X = blue
-                        : yOver === maxOver ? '#27ae60'   // Y = green
-                        :                    '#e74c3c';   // Z = red
-        triggerSpotOn(axisColor);
-        triggerDetection('auto');
+
+    if (isRecording) {
+      // ── Maintain pre-trigger ring buffer (runs every event, ~60 Hz) ──
+      preBuf.push({ time: new Date().toISOString(), x: lastX, y: lastY, z: lastZ });
+      if (preBuf.length > PRE_BUF_SIZE) preBuf.shift();
+
+      // ── Collect post-trigger samples if a bump was just detected ──
+      if (postCapture) {
+        pendingRows.push(makeRow('post_bump', postCapture.bumpId));
+        postCapture.remaining--;
+        if (postCapture.remaining <= 0) {
+          postCapture = null;
+          scheduleFlush();
+        }
+      }
+
+      // ── Threshold detection ──
+      if (!detectionCooldown) {
+        const xOver = lastX / xThreshold;
+        const yOver = lastY / yThreshold;
+        const zOver = lastZ / zThreshold;
+        const maxOver = Math.max(xOver, yOver, zOver);
+        if (maxOver >= 1.0) {
+          detectionCooldown = true;
+          setTimeout(() => { detectionCooldown = false; }, 2000);
+          const axisColor = xOver === maxOver ? '#1a6fd4'
+                          : yOver === maxOver ? '#27ae60'
+                          :                    '#e74c3c';
+          triggerSpotOn(axisColor);
+
+          // Snapshot pre-buffer → queue as pre_bump rows
+          const bumpId = SESSION_ID + '_' + Date.now();
+          const snap = preBuf.slice(); // copy before it mutates
+          snap.forEach(s => {
+            pendingRows.push(makeRow('pre_bump', bumpId, s.time, s.x, s.y, s.z));
+          });
+
+          // Start post-trigger collection
+          postCapture = { bumpId, remaining: POST_BUF_SIZE };
+
+          // Single summary row for this bump event
+          triggerDetection('auto', bumpId);
+        }
       }
     }
   };
@@ -757,6 +826,9 @@ function toggleRecording() {
     document.getElementById('zVal').textContent = '0.0';
     stopGPS();
     stopDisplayTimer();
+    stopHighRes();
+    postCapture = null;
+    preBuf = [];
     if (motionHandler) {
       window.removeEventListener('devicemotion', motionHandler, true);
       motionHandler = null;
