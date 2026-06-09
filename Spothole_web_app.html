@@ -422,7 +422,7 @@ window.addEventListener('resize', resizeCanvas);
 setTimeout(resizeCanvas, 50); // fallback after first paint
 
 // ── Buffers ──────────────────────────────────────────────
-const N    = 100;
+const N    = 80;   // ~5 seconds at 16 Hz
 const xBuf = new Float32Array(N);
 const yBuf = new Float32Array(N);
 const zBuf = new Float32Array(N);
@@ -528,7 +528,7 @@ function startDisplayTimer() {
     document.getElementById('xVal').textContent = lastX.toFixed(1);
     document.getElementById('yVal').textContent = lastY.toFixed(1);
     document.getElementById('zVal').textContent = lastZ.toFixed(1);
-  }, 250); // 4 Hz
+  }, 60); // ~16 Hz
 }
 
 function stopDisplayTimer() {
