@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Spothole</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #dcdcdc;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+  }
+
+  .phone {
+    width: 390px;
+    background: #dcdcdc;
+    padding: 14px;
+  }
+
+  /* ── Upper panel ── */
+  .upper-panel {
+    background: white;
+    border-radius: 18px;
+    padding: 14px;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  }
+
+  /* Row 1: Speed + Direction */
+  .row-speed {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .metric-box {
+    flex: 1;
+    background: #f0f0f0;
+    border-radius: 12px;
+    padding: 14px 10px;
+    text-align: center;
+  }
+  .metric-primary {
+    font-size: 38px;
+    font-weight: 300;
+    color: #111;
+    line-height: 1;
+  }
+  .metric-unit {
+    font-size: 13px;
+    color: #888;
+    font-weight: 400;
+  }
+
+  /* Row 2: X Y Z */
+  .row-xyz {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .xyz-box {
+    flex: 1;
+    background: #f0f0f0;
+    border-radius: 12px;
+    padding: 10px 6px;
+    text-align: center;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 2px;
+  }
+  .xyz-number {
+    font-size: 30px;
+    font-weight: 300;
+    color: #111;
+    line-height: 1;
+  }
+  .xyz-symbol {
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+  .xyz-symbol.x { color: #e74c3c; }
+  .xyz-symbol.y { color: #27ae60; }
+  .xyz-symbol.z { color: #d4a800; }
+
+  /* Graph */
+  .graph-wrap {
+    background: #efefef;
+    border-radius: 10px;
+    padding: 8px 8px 4px;
+    margin-bottom: 8px;
+    position: relative;
+  }
+  canvas#graph {
+    display: block;
+    width: 100%;
+    height: 130px;
+  }
+  .graph-legend {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    display: flex;
+    gap: 8px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .legend-dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+  }
+
+  /* Status row */
+  .status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2px 0 0;
+  }
+  .status-label { color: #aaa; font-size: 14px; }
+  .status-dots { display: flex; gap: 5px; }
+  .sdot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; }
+  .session-label {
+    color: #bbb;
+    font-size: 11px;
+    text-align: right;
+    margin-top: 3px;
+  }
+
+  /* ── SpotOn overlay ── */
+  .spoton-overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #ff6500;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 20;
+  }
+  .spoton-word {
+    font-size: 72px;
+    font-weight: 900;
+    color: white;
+    letter-spacing: -3px;
+    text-shadow: 0 4px 24px rgba(0,0,0,0.25);
+    line-height: 1;
+  }
+  .spoton-sub {
+    font-size: 18px;
+    color: rgba(255,255,255,0.85);
+    margin-top: 6px;
+    font-weight: 500;
+    letter-spacing: 1px;
+  }
+
+  /* ── Buttons ── */
+  .buttons-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .btn-start {
+    flex: 1;
+    background: #2ecc71;
+    color: white;
+    border: none;
+    border-radius: 16px;
+    padding: 20px 18px;
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 0.2s;
+  }
+  .btn-pothole {
+    flex: 1.5;
+    background: #e8e8e8;
+    color: #999;
+    border: none;
+    border-radius: 16px;
+    padding: 16px 12px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: background 0.1s;
+  }
+  .btn-pothole:active { background: #ddd; }
+  .pothole-emoji { font-size: 36px; line-height: 1; }
+  .btn-highres {
+    flex: 1;
+    background: #1a1a1a;
+    color: white;
+    border: none;
+    border-radius: 16px;
+    padding: 20px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+  }
+
+  /* ── Sliders panel ── */
+  .sliders-panel {
+    background: white;
+    border-radius: 18px;
+    padding: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  }
+  .slider-row { margin-bottom: 18px; }
+  .slider-row:last-child { margin-bottom: 0; }
+  .slider-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .slider-label {
+    font-size: 11.5px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+  }
+  .slider-label.x { color: #e74c3c; }
+  .slider-label.y { color: #27ae60; }
+  .slider-label.z { color: #d4a800; }
+  .slider-val { font-size: 13px; color: #555; font-weight: 500; }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 5px;
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+  }
+  /* Colored track fills are set via JS gradient */
+  input[type=range].sx { background: #e0e0e0; }
+  input[type=range].sy { background: #e0e0e0; }
+  input[type=range].sz { background: #e0e0e0; }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 3px solid white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    transition: transform 0.1s;
+  }
+  input[type=range]::-webkit-slider-thumb:active { transform: scale(1.15); }
+
+  input[type=range].sx::-webkit-slider-thumb { background: #e74c3c; }
+  input[type=range].sy::-webkit-slider-thumb { background: #27ae60; }
+  input[type=range].sz::-webkit-slider-thumb { background: #d4a800; }
+</style>
+</head>
+<body>
+<div class="phone">
+
+  <!-- ── Upper panel ── -->
+  <div class="upper-panel" id="upperPanel">
+
+    <!-- SpotOn overlay -->
+    <div class="spoton-overlay" id="spotonOverlay">
+      <span class="spoton-word">SpotOn!</span>
+      <span class="spoton-sub">bump detected</span>
+    </div>
+
+    <!-- Row 1 -->
+    <div class="row-speed">
+      <div class="metric-box">
+        <span class="metric-primary" id="speedVal">0.2</span><span class="metric-unit"> mph</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-primary" id="dirVal">NE</span>
+      </div>
+    </div>
+
+    <!-- Row 2: X Y Z with arrow symbols -->
+    <div class="row-xyz">
+      <div class="xyz-box">
+        <span class="xyz-number" id="xVal">0.0</span>
+        <span class="xyz-symbol x">&#x2194;</span><!-- ↔ -->
+      </div>
+      <div class="xyz-box">
+        <span class="xyz-number" id="yVal">0.0</span>
+        <span class="xyz-symbol y">&#x2195;</span><!-- ↕ -->
+      </div>
+      <div class="xyz-box">
+        <span class="xyz-number" id="zVal">0.0</span>
+        <span class="xyz-symbol z">Z</span>
+      </div>
+    </div>
+
+    <!-- Graph -->
+    <div class="graph-wrap">
+      <canvas id="graph"></canvas>
+      <div class="graph-legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#e74c3c"></div>
+          <span style="color:#e74c3c">X</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#27ae60"></div>
+          <span style="color:#27ae60">Y</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#d4a800"></div>
+          <span style="color:#d4a800">Z</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status -->
+    <div class="status-row">
+      <span class="status-label" id="statusText">Stopped</span>
+      <div class="status-dots">
+        <div class="sdot"></div>
+        <div class="sdot"></div>
+        <div class="sdot"></div>
+      </div>
+    </div>
+    <div class="session-label">sess_20260608_161345</div>
+  </div>
+
+  <!-- ── Buttons ── -->
+  <div class="buttons-row">
+    <button class="btn-start" id="startBtn" onclick="toggleRecording()">
+      <span id="startIcon">&#9654;</span>
+      <span id="startLabel">Start</span>
+    </button>
+    <button class="btn-pothole" id="potholeBtn" onclick="manualBump()">
+      <span class="pothole-emoji">&#x1F632;</span>
+      <span>Pothole</span>
+    </button>
+    <button class="btn-highres">HIGH RES</button>
+  </div>
+
+  <!-- ── Sliders ── -->
+  <div class="sliders-panel">
+    <div class="slider-row">
+      <div class="slider-header">
+        <span class="slider-label x">X Lateral G-Force</span>
+        <span class="slider-val" id="xValLbl">0.8g</span>
+      </div>
+      <input type="range" class="sx" id="xSlider" min="0.1" max="3" step="0.1" value="0.8"
+        oninput="onSlider(this,'xValLbl','#e74c3c')">
+    </div>
+    <div class="slider-row">
+      <div class="slider-header">
+        <span class="slider-label y">Y Acceleration G-Force</span>
+        <span class="slider-val" id="yValLbl">1.3g</span>
+      </div>
+      <input type="range" class="sy" id="ySlider" min="0.1" max="3" step="0.1" value="1.3"
+        oninput="onSlider(this,'yValLbl','#27ae60')">
+    </div>
+    <div class="slider-row">
+      <div class="slider-header">
+        <span class="slider-label z">Z Pothole G-Force</span>
+        <span class="slider-val" id="zValLbl">0.6g</span>
+      </div>
+      <input type="range" class="sz" id="zSlider" min="0.1" max="3" step="0.1" value="0.6"
+        oninput="onSlider(this,'zValLbl','#d4a800')">
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Canvas ──────────────────────────────────────────────
+const canvas = document.getElementById('graph');
+const ctx    = canvas.getContext('2d');
+
+function resizeCanvas() {
+  const wrap = canvas.parentElement;
+  canvas.width  = wrap.clientWidth  - 16;
+  canvas.height = 130;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// ── Data ────────────────────────────────────────────────
+const N = 120;
+const xBuf = new Float32Array(N);
+const yBuf = new Float32Array(N);
+const zBuf = new Float32Array(N);
+
+let isRecording = false;
+let cooldown    = 0;
+let bumpFrames  = 0;          // frames remaining in bump pulse
+let bumpX = 0, bumpY = 0, bumpZ = 0;
+
+const DIRS = ['N','NE','E','SE','S','SW','W','NW'];
+let dirIdx = 2;
+
+// ── SpotOn ──────────────────────────────────────────────
+const overlay   = document.getElementById('spotonOverlay');
+let spotActive  = false;
+let fadeTimer   = null;
+let fadeStart   = null;
+
+function triggerSpotOn() {
+  if (spotActive) return;
+  spotActive = true;
+
+  // Pick a vivid color each time
+  const colors = ['#ff6500','#e60040','#7c00cc','#0077cc','#007a3d'];
+  overlay.style.background = colors[Math.floor(Math.random() * colors.length)];
+  overlay.style.transition = 'opacity 0.15s ease-in';
+  overlay.style.opacity    = '1';
+
+  if (fadeTimer) clearTimeout(fadeTimer);
+
+  // Show 2.5s → fade 1.5s = 4s total
+  fadeTimer = setTimeout(() => {
+    overlay.style.transition = 'opacity 1.5s ease-out';
+    overlay.style.opacity    = '0';
+    setTimeout(() => { spotActive = false; }, 1500);
+  }, 2500);
+}
+
+function manualBump() {
+  triggerSpotOn();
+  // inject a bump into the data stream
+  bumpX = (Math.random() - 0.5) * 3.0;
+  bumpY = (Math.random() - 0.5) * 1.5;
+  bumpZ = Math.random() * 2.8;
+  bumpFrames = 8;
+}
+
+// ── Simulate data ────────────────────────────────────────
+const rng = () => (Math.random() - 0.5) * 0.18;
+
+function tick() {
+  let x = rng(), y = rng(), z = rng();
+
+  // Auto-bump while recording
+  if (isRecording) {
+    if (cooldown > 0) { cooldown--; }
+    else if (Math.random() < 0.012) {
+      bumpX = (Math.random() - 0.5) * 2.8;
+      bumpY = (Math.random() - 0.5) * 1.4;
+      bumpZ = Math.random() * 2.5 + 0.3;
+      bumpFrames = 8;
+      cooldown   = 45;
+      triggerSpotOn();
+    }
+  }
+
+  if (bumpFrames > 0) {
+    const env = bumpFrames / 8;
+    x += bumpX * env;
+    y += bumpY * env;
+    z += bumpZ * env;
+    bumpFrames--;
+  }
+
+  // Shift buffer
+  xBuf.copyWithin(0, 1); xBuf[N-1] = x;
+  yBuf.copyWithin(0, 1); yBuf[N-1] = y;
+  zBuf.copyWithin(0, 1); zBuf[N-1] = z;
+
+  // Update readouts
+  document.getElementById('xVal').textContent = Math.abs(x).toFixed(1);
+  document.getElementById('yVal').textContent = Math.abs(y).toFixed(1);
+  document.getElementById('zVal').textContent = Math.abs(z).toFixed(1);
+
+  if (isRecording) {
+    const spd = (Math.random() * 3 + 0.5).toFixed(1);
+    document.getElementById('speedVal').textContent = spd;
+    if (Math.random() < 0.01) {
+      dirIdx = (dirIdx + (Math.random() < 0.5 ? 1 : -1) + 8) % 8;
+      document.getElementById('dirVal').textContent = DIRS[dirIdx];
+    }
+  }
+}
+
+// ── Draw graph ───────────────────────────────────────────
+function drawGraph() {
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  // background
+  ctx.fillStyle = '#efefef';
+  ctx.fillRect(0, 0, w, h);
+
+  // dashed centre line
+  ctx.save();
+  ctx.strokeStyle = '#d0d0d0';
+  ctx.lineWidth   = 1;
+  ctx.setLineDash([5, 5]);
+  const mid = h * 0.38;
+  ctx.beginPath(); ctx.moveTo(0, mid); ctx.lineTo(w, mid); ctx.stroke();
+  ctx.restore();
+
+  // draw each axis
+  const bufs   = [xBuf, yBuf, zBuf];
+  const colors = ['#e74c3c','#27ae60','#d4a800'];
+
+  bufs.forEach((buf, i) => {
+    ctx.save();
+    ctx.strokeStyle = colors[i];
+    ctx.lineWidth   = 3.8;
+    ctx.lineJoin    = 'round';
+    ctx.lineCap     = 'round';
+    ctx.beginPath();
+    for (let j = 0; j < N; j++) {
+      const px = (j / (N - 1)) * w;
+      const py = h / 2 - (buf[j] / 3.5) * (h / 2) * 0.9;
+      j === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    ctx.restore();
+  });
+}
+
+// ── Animation loop ───────────────────────────────────────
+let frame = 0;
+function loop() {
+  requestAnimationFrame(loop);
+  frame++;
+  if (frame % 4 === 0 && isRecording) tick();
+  drawGraph();
+}
+loop();
+
+// ── Recording toggle ──────────────────────────────────────
+function toggleRecording() {
+  isRecording = !isRecording;
+  const btn    = document.getElementById('startBtn');
+  const status = document.getElementById('statusText');
+  if (isRecording) {
+    btn.style.background = '#e74c3c';
+    document.getElementById('startIcon').textContent  = '⏹';
+    document.getElementById('startLabel').textContent = 'Stop';
+    status.textContent = 'Recording';
+  } else {
+    btn.style.background = '#2ecc71';
+    document.getElementById('startIcon').textContent  = '▶';
+    document.getElementById('startLabel').textContent = 'Start';
+    status.textContent = 'Stopped';
+  }
+}
+
+// ── Sliders ──────────────────────────────────────────────
+function onSlider(input, labelId, color) {
+  const v   = parseFloat(input.value);
+  const pct = ((v - 0.1) / (3 - 0.1)) * 100;
+  input.style.background =
+    `linear-gradient(to right, ${color} 0%, ${color} ${pct}%, #d8d8d8 ${pct}%, #d8d8d8 100%)`;
+  document.getElementById(labelId).textContent = v.toFixed(1) + 'g';
+}
+
+// Init slider fills on load
+(function initSliders() {
+  const cfg = [
+    { id: 'xSlider', lbl: 'xValLbl', color: '#e74c3c' },
+    { id: 'ySlider', lbl: 'yValLbl', color: '#27ae60' },
+    { id: 'zSlider', lbl: 'zValLbl', color: '#d4a800' },
+  ];
+  cfg.forEach(({ id, lbl, color }) => {
+    const el = document.getElementById(id);
+    onSlider(el, lbl, color);
+  });
+})();
+</script>
+</body>
+</html>
