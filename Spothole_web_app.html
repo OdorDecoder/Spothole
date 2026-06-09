@@ -434,24 +434,23 @@ const overlay  = document.getElementById('spotonOverlay');
 let spotActive = false;
 let fadeTimer  = null;
 
-function triggerSpotOn() {
+function triggerSpotOn(color) {
   if (spotActive) return;
   spotActive = true;
-  const colors = ['#ff6500','#e60040','#7c00cc','#0077cc','#007a3d'];
-  overlay.style.background = colors[Math.floor(Math.random() * colors.length)];
-  overlay.style.transition = 'opacity 0.15s ease-in';
+  overlay.style.background = color || '#ff6500';
+  overlay.style.transition = 'opacity 0.1s ease-in';
   overlay.style.opacity    = '1';
   if (fadeTimer) clearTimeout(fadeTimer);
   fadeTimer = setTimeout(() => {
-    overlay.style.transition = 'opacity 1.5s ease-out';
+    overlay.style.transition = 'opacity 2s ease-out';
     overlay.style.opacity    = '0';
-    setTimeout(() => { spotActive = false; }, 1500);
-  }, 2500);
+    setTimeout(() => { spotActive = false; }, 2000);
+  }, 0);
 }
 
 function manualBump() {
   if (!isRecording) return;
-  triggerSpotOn();
+  triggerSpotOn('#e74c3c'); // manual = Z/pothole color
 }
 
 // ── GPS ───────────────────────────────────────────────────
@@ -498,10 +497,18 @@ function attachMotion() {
     lastZ = toG(ag.z);
     // Threshold detection at full sensor rate
     if (isRecording && !detectionCooldown) {
-      if (lastX > xThreshold || lastY > yThreshold || lastZ > zThreshold) {
+      // Determine which axis triggered — pick the one most over its threshold
+      const xOver = lastX / xThreshold;
+      const yOver = lastY / yThreshold;
+      const zOver = lastZ / zThreshold;
+      const maxOver = Math.max(xOver, yOver, zOver);
+      if (maxOver >= 1.0) {
         detectionCooldown = true;
         setTimeout(() => { detectionCooldown = false; }, 2000);
-        triggerSpotOn();
+        const axisColor = xOver === maxOver ? '#1a6fd4'   // X = blue
+                        : yOver === maxOver ? '#27ae60'   // Y = green
+                        :                    '#e74c3c';   // Z = red
+        triggerSpotOn(axisColor);
       }
     }
   };
