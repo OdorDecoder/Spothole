@@ -2,841 +2,592 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Spot Hole</title>
-</head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Spothole</title>
 <style>
-:root {
-  color-scheme: light dark;
-  --bg: #f2f2f7;
-  --bg-card: #ffffff;
-  --bg-metric: #f2f2f7;
-  --text: #1c1c1e;
-  --text-2: #6e6e73;
-  --text-3: #aeaeb2;
-  --border: #c6c6c8;
-  --border-2: #d1d1d6;
-  /* axis gradient stops — light mode */
-  --gx-a:#0891B2; --gx-b:#F59E0B; --gx-c:#F97316;
-  --gy-a:#7C3AED; --gy-b:#EC4899; --gy-c:#EF4444;
-  --gz-a:#1D9E75; --gz-b:#F5A623; --gz-c:#E24B4A;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #000000;
-    --bg-card: #1c1c1e;
-    --bg-metric: #2c2c2e;
-    --text: #ffffff;
-    --text-2: #aeaeb2;
-    --text-3: #636366;
-    --border: #38383a;
-    --border-2: #48484a;
-    /* brighter in dark mode — readable on dark backgrounds */
-    --gx-a:#38BDF8; --gx-b:#FCD34D; --gx-c:#FB923C;
-    --gy-a:#A78BFA; --gy-b:#F472B6; --gy-c:#F87171;
-    --gz-a:#34D39A; --gz-b:#FBBC04; --gz-c:#FF6B6B;
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #dcdcdc;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
   }
-}
 
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+  .phone {
+    width: 390px;
+    background: #dcdcdc;
+    padding: 14px;
+  }
 
-/* ── Splash screen ── */
-#splash{position:fixed;inset:0;background:#000;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;animation:splashFade 4s ease-out forwards}
-#splash img{width:140px;height:140px;border-radius:32px;box-shadow:0 12px 48px rgba(0,0,0,.6)}
-#splash .splash-title{color:#fff;font-size:48px;font-weight:600;letter-spacing:-.02em}
-@keyframes splashFade{0%,75%{opacity:1}100%{opacity:0}}
+  /* ── Upper panel ── */
+  .upper-panel {
+    background: white;
+    border-radius: 18px;
+    padding: 14px;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  }
 
-/* ── Hero row: speed + heading ── */
-.hero-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
-.hero-box{background:var(--bg-metric);border-radius:12px;padding:10px 6px 8px;text-align:center}
+  /* Row 1: Speed + Direction */
+  .row-speed {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .metric-box {
+    flex: 1;
+    background: #f0f0f0;
+    border-radius: 12px;
+    padding: 14px 10px;
+    text-align: center;
+  }
+  .metric-primary {
+    font-size: 38px;
+    font-weight: 300;
+    color: #111;
+    line-height: 1;
+  }
+  .metric-unit {
+    font-size: 13px;
+    color: #888;
+    font-weight: 400;
+  }
 
-/* ── Layout ── */
-.main{padding:12px;display:flex;flex-direction:column;gap:10px;max-width:540px;margin:0 auto}
+  /* Row 2: X Y Z */
+  .row-xyz {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .xyz-box {
+    flex: 1;
+    background: #f0f0f0;
+    border-radius: 12px;
+    padding: 10px 6px;
+    text-align: center;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 2px;
+  }
+  .xyz-number {
+    font-size: 30px;
+    font-weight: 300;
+    color: #111;
+    line-height: 1;
+  }
+  .xyz-symbol {
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+  .xyz-symbol.x { color: #e74c3c; }
+  .xyz-symbol.y { color: #27ae60; }
+  .xyz-symbol.z { color: #d4a800; }
 
-/* ── Cards ── */
-.card{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
-.card-title{font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px}
-.card.flash-pothole{animation:potholeFlash 3s ease-out}
-@keyframes potholeFlash{0%,8%{background:#F5A623}100%{background:var(--bg-card)}}
-@keyframes pulse{from{opacity:.4}to{opacity:1}}
+  /* Graph */
+  .graph-wrap {
+    background: #efefef;
+    border-radius: 10px;
+    padding: 8px 8px 4px;
+    margin-bottom: 8px;
+    position: relative;
+  }
+  canvas#graph {
+    display: block;
+    width: 100%;
+    height: 130px;
+  }
+  .graph-legend {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    display: flex;
+    gap: 8px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .legend-dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+  }
 
+  /* Status row */
+  .status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2px 0 0;
+  }
+  .status-label { color: #aaa; font-size: 14px; }
+  .status-dots { display: flex; gap: 5px; }
+  .sdot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; }
+  .session-label {
+    color: #bbb;
+    font-size: 11px;
+    text-align: right;
+    margin-top: 3px;
+  }
 
-/* ── X Y Z mini boxes ── */
-.accel-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px}
-.accel-box{background:var(--bg-metric);border-radius:10px;padding:10px 6px 8px;text-align:center}
-.accel-reading{display:flex;align-items:flex-end;justify-content:center;gap:2px}
-.accel-num{font-size:30px;font-weight:300;color:var(--text);line-height:1;letter-spacing:-.02em}
-.accel-tag{font-size:13px;font-weight:700;margin-bottom:3px;text-transform:lowercase}
-.accel-tag.x{color:var(--gx-c)}
-.accel-tag.y{color:var(--gy-c)}
-.accel-tag.z{color:var(--gz-c)}
+  /* ── SpotOn overlay ── */
+  .spoton-overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #ff6500;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 20;
+  }
+  .spoton-word {
+    font-size: 72px;
+    font-weight: 900;
+    color: white;
+    letter-spacing: -3px;
+    text-shadow: 0 4px 24px rgba(0,0,0,0.25);
+    line-height: 1;
+  }
+  .spoton-sub {
+    font-size: 18px;
+    color: rgba(255,255,255,0.85);
+    margin-top: 6px;
+    font-weight: 500;
+    letter-spacing: 1px;
+  }
 
-/* ── Axis bar + slider blocks ── */
-.axis-block{margin-bottom:11px}
-.axis-block:last-of-type{margin-bottom:0}
-.axis-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
-.axis-name{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
-.axis-name.x{color:var(--gx-c)}
-.axis-name.y{color:var(--gy-c)}
-.axis-name.z{color:var(--gz-c)}
-.axis-thresh{font-size:11px;color:var(--text-2)}
-.bar-wrap{position:relative;height:12px;border-radius:6px;overflow:hidden;margin-bottom:5px}
-.bar-wrap.x{background:linear-gradient(to right,var(--gx-a),var(--gx-b),var(--gx-c))}
-.bar-wrap.y{background:linear-gradient(to right,var(--gy-a),var(--gy-b),var(--gy-c))}
-.bar-wrap.z{background:linear-gradient(to right,var(--gz-a),var(--gz-b),var(--gz-c))}
-.bar-cover{position:absolute;right:0;top:0;height:100%;background:var(--bg-metric);transition:width .08s linear;width:100%}
-.axis-slider{display:block;width:100%;-webkit-appearance:none;appearance:none;height:3px;border-radius:2px;background:var(--border-2);outline:none;cursor:pointer}
-.axis-slider.x{accent-color:var(--gx-c)}
-.axis-slider.y{accent-color:var(--gy-c)}
-.axis-slider.z{accent-color:var(--gz-c)}
+  /* ── Buttons ── */
+  .buttons-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .btn-start {
+    flex: 1;
+    background: #2ecc71;
+    color: white;
+    border: none;
+    border-radius: 16px;
+    padding: 20px 18px;
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 0.2s;
+  }
+  .btn-pothole {
+    flex: 1.5;
+    background: #e8e8e8;
+    color: #999;
+    border: none;
+    border-radius: 16px;
+    padding: 16px 12px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: background 0.1s;
+  }
+  .btn-pothole:active { background: #ddd; }
+  .pothole-emoji { font-size: 36px; line-height: 1; }
+  .btn-highres {
+    flex: 1;
+    background: #1a1a1a;
+    color: white;
+    border: none;
+    border-radius: 16px;
+    padding: 20px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+  }
 
-/* ── Coord + status footer ── */
-.coord-line{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}
-.coord-text{font-size:12px;color:var(--text-3);font-variant-numeric:tabular-nums;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.status-pills{display:flex;align-items:center;gap:5px;flex-shrink:0}
-.pill-dot{width:7px;height:7px;border-radius:50%;background:var(--border-2)}
-.pill-dot.ok{background:#1D9E75}
-.pill-dot.live{background:#E24B4A;animation:pulse .8s ease-in-out infinite alternate}
-.session-id{font-size:10px;color:var(--text-3);text-align:right;margin-top:5px}
+  /* ── Sliders panel ── */
+  .sliders-panel {
+    background: white;
+    border-radius: 18px;
+    padding: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  }
+  .slider-row { margin-bottom: 18px; }
+  .slider-row:last-child { margin-bottom: 0; }
+  .slider-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .slider-label {
+    font-size: 11.5px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+  }
+  .slider-label.x { color: #e74c3c; }
+  .slider-label.y { color: #27ae60; }
+  .slider-label.z { color: #d4a800; }
+  .slider-val { font-size: 13px; color: #555; font-weight: 500; }
 
-/* ── Controls row (Start · Mark · HR) ── */
-.controls-row{display:flex;gap:8px;align-items:stretch}
-.btn{padding:14px;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;transition:transform .1s;letter-spacing:-.01em}
-.btn:active{transform:scale(.97)}
-.btn-start{flex:1;background:#1D9E75;color:#fff;box-shadow:0 2px 8px rgba(29,158,117,.3)}
-.btn-stop{flex:1;background:#E24B4A;color:#fff;box-shadow:0 2px 8px rgba(226,75,74,.3)}
-.btn-mark{flex:2;background:#F5A623;color:#fff;font-size:15px;font-weight:700;border:none;border-radius:12px;padding:14px 10px;cursor:pointer;transition:transform .1s,background .15s;box-shadow:0 2px 8px rgba(245,166,35,.35);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.btn-mark:active,.btn-mark.active{transform:scale(.97)}
-.btn-mark.active{background:#1D9E75}
-.btn-mark:disabled{background:var(--border-2);cursor:default;transform:none;box-shadow:none;color:var(--text-3)}
-.btn-hr{width:76px;flex-shrink:0;background:#1c1c1e;color:#fff;border:1.5px solid #48484a;border-radius:12px;font-size:13px;font-weight:700;padding:0;cursor:pointer;transition:all .15s;letter-spacing:.02em}
-@media (prefers-color-scheme: dark){.btn-hr{background:#2c2c2e;border-color:#636366}}
-.btn-hr.recording{background:#E24B4A;border-color:#E24B4A;font-size:11px;animation:pulse .8s ease-in-out infinite alternate}
-.btn-hr:disabled{opacity:.4;cursor:default}
+  input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 5px;
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+  }
+  /* Colored track fills are set via JS gradient */
+  input[type=range].sx { background: #e0e0e0; }
+  input[type=range].sy { background: #e0e0e0; }
+  input[type=range].sz { background: #e0e0e0; }
 
-/* ── Log ── */
-.log{max-height:200px;overflow-y:auto}
-.log-empty{font-size:13px;color:var(--text-3);text-align:center;padding:18px 0}
-.log-item{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
-.log-item:last-child{border-bottom:none}
-.log-dot{width:8px;height:8px;border-radius:50%;margin-top:4px;flex-shrink:0}
-.dot-auto{background:#E24B4A}
-.dot-manual{background:#378ADD}
-.log-info{flex:1;min-width:0}
-.log-coords{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.log-meta{font-size:11px;color:var(--text-2);margin-top:2px}
-.log-badge{font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600;margin-left:3px}
-.badge-auto{background:#FCEBEB;color:#A32D2D}
-.badge-manual{background:#E6F1FB;color:#0C447C}
-.count-badge{display:inline-block;background:#E24B4A;color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;margin-left:6px;vertical-align:middle}
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 3px solid white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    transition: transform 0.1s;
+  }
+  input[type=range]::-webkit-slider-thumb:active { transform: scale(1.15); }
 
-/* ── Share toggle button ── */
-.btn-share{background:var(--bg-card);color:var(--text);border:1.5px solid var(--border);border-radius:12px;font-size:15px;font-weight:600;padding:14px;cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;transition:border-color .15s}
-.btn-share:active{opacity:.7}
-.btn-share .share-chevron{font-size:11px;color:var(--text-3);transition:transform .2s}
-.btn-share.open .share-chevron{transform:rotate(180deg)}
-
-/* ── Export + maps ── */
-.btn-export-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px}
-.btn-export{padding:9px 4px;border:1px solid var(--border-2);border-radius:9px;background:var(--bg-metric);color:var(--text);font-size:12px;font-weight:500;cursor:pointer;text-align:center}
-.btn-export:active{opacity:.7}
-.btn-maps{background:#1a73e8;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:500;padding:11px;cursor:pointer;width:100%;margin-top:8px}
-.btn-maps:active{background:#1557b0}
-
-/* ── Sync bar ── */
-.sync-bar{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--border);flex-shrink:0}
-.sync-dot.ok{background:#1D9E75}
-.sync-dot.busy{background:#F5A623;animation:pulse .6s ease-in-out infinite alternate}
-.sync-dot.err{background:#E24B4A}
-.sync-label{font-size:12px;color:var(--text-2);flex:1}
-.sync-link{font-size:12px;color:#1a73e8;text-decoration:none;flex-shrink:0}
+  input[type=range].sx::-webkit-slider-thumb { background: #e74c3c; }
+  input[type=range].sy::-webkit-slider-thumb { background: #27ae60; }
+  input[type=range].sz::-webkit-slider-thumb { background: #d4a800; }
 </style>
+</head>
+<body>
+<div class="phone">
 
-<!-- Splash screen -->
-<div id="splash">
-  <img src="Spothole%20logo%20small.png" alt="Spot Hole">
-  <div class="splash-title">Spot Hole</div>
+  <!-- ── Upper panel ── -->
+  <div class="upper-panel" id="upperPanel">
+
+    <!-- SpotOn overlay -->
+    <div class="spoton-overlay" id="spotonOverlay">
+      <span class="spoton-word">SpotOn!</span>
+      <span class="spoton-sub">bump detected</span>
+    </div>
+
+    <!-- Row 1 -->
+    <div class="row-speed">
+      <div class="metric-box">
+        <span class="metric-primary" id="speedVal">0.2</span><span class="metric-unit"> mph</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-primary" id="dirVal">NE</span>
+      </div>
+    </div>
+
+    <!-- Row 2: X Y Z with arrow symbols -->
+    <div class="row-xyz">
+      <div class="xyz-box">
+        <span class="xyz-number" id="xVal">0.0</span>
+        <span class="xyz-symbol x">&#x2194;</span><!-- ↔ -->
+      </div>
+      <div class="xyz-box">
+        <span class="xyz-number" id="yVal">0.0</span>
+        <span class="xyz-symbol y">&#x2195;</span><!-- ↕ -->
+      </div>
+      <div class="xyz-box">
+        <span class="xyz-number" id="zVal">0.0</span>
+        <span class="xyz-symbol z">Z</span>
+      </div>
+    </div>
+
+    <!-- Graph -->
+    <div class="graph-wrap">
+      <canvas id="graph"></canvas>
+      <div class="graph-legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#e74c3c"></div>
+          <span style="color:#e74c3c">X</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#27ae60"></div>
+          <span style="color:#27ae60">Y</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#d4a800"></div>
+          <span style="color:#d4a800">Z</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status -->
+    <div class="status-row">
+      <span class="status-label" id="statusText">Stopped</span>
+      <div class="status-dots">
+        <div class="sdot"></div>
+        <div class="sdot"></div>
+        <div class="sdot"></div>
+      </div>
+    </div>
+    <div class="session-label">sess_20260608_161345</div>
+  </div>
+
+  <!-- ── Buttons ── -->
+  <div class="buttons-row">
+    <button class="btn-start" id="startBtn" onclick="toggleRecording()">
+      <span id="startIcon">&#9654;</span>
+      <span id="startLabel">Start</span>
+    </button>
+    <button class="btn-pothole" id="potholeBtn" onclick="manualBump()">
+      <span class="pothole-emoji">&#x1F632;</span>
+      <span>Pothole</span>
+    </button>
+    <button class="btn-highres">HIGH RES</button>
+  </div>
+
+  <!-- ── Sliders ── -->
+  <div class="sliders-panel">
+    <div class="slider-row">
+      <div class="slider-header">
+        <span class="slider-label x">X Lateral G-Force</span>
+        <span class="slider-val" id="xValLbl">0.8g</span>
+      </div>
+      <input type="range" class="sx" id="xSlider" min="0.1" max="3" step="0.1" value="0.8"
+        oninput="onSlider(this,'xValLbl','#e74c3c')">
+    </div>
+    <div class="slider-row">
+      <div class="slider-header">
+        <span class="slider-label y">Y Acceleration G-Force</span>
+        <span class="slider-val" id="yValLbl">1.3g</span>
+      </div>
+      <input type="range" class="sy" id="ySlider" min="0.1" max="3" step="0.1" value="1.3"
+        oninput="onSlider(this,'yValLbl','#27ae60')">
+    </div>
+    <div class="slider-row">
+      <div class="slider-header">
+        <span class="slider-label z">Z Pothole G-Force</span>
+        <span class="slider-val" id="zValLbl">0.6g</span>
+      </div>
+      <input type="range" class="sz" id="zSlider" min="0.1" max="3" step="0.1" value="0.6"
+        oninput="onSlider(this,'zValLbl','#d4a800')">
+    </div>
+  </div>
+
 </div>
-<!-- Hidden status dot anchors kept for JS compatibility -->
-<span id="hd-gps" style="display:none"></span>
-<span id="hd-motion" style="display:none"></span>
-<span id="hd-running" style="display:none"></span>
-
-<div class="main">
-
-  <div class="card" id="sensor-card">
-
-    <!-- Speed + Heading -->
-    <div class="hero-row">
-      <div class="hero-box">
-        <div class="accel-reading"><span class="accel-num" id="spd">—</span><span class="accel-tag" style="color:var(--text-2)">mph</span></div>
-      </div>
-      <div class="hero-box">
-        <div class="accel-reading"><span class="accel-num" id="hdg">—</span></div>
-      </div>
-    </div>
-
-    <!-- X Y Z values -->
-    <div class="accel-row">
-      <div class="accel-box">
-        <div class="accel-reading"><span class="accel-num" id="xval">—</span><span class="accel-tag x">x</span></div>
-      </div>
-      <div class="accel-box">
-        <div class="accel-reading"><span class="accel-num" id="yval">—</span><span class="accel-tag y">y</span></div>
-      </div>
-      <div class="accel-box">
-        <div class="accel-reading"><span class="accel-num" id="zval">—</span><span class="accel-tag z">z</span></div>
-      </div>
-    </div>
-
-    <!-- Scrolling waveform graph -->
-    <canvas id="accel-graph" height="120" style="width:100%;border-radius:10px;display:block;margin-bottom:14px;background:var(--bg-metric)"></canvas>
-
-    <!-- Lat/lon + sensor status dots -->
-    <div class="coord-line">
-      <span class="coord-text" id="coord-display">No GPS</span>
-      <div class="status-pills">
-        <div class="pill-dot" id="dot-gps"    title="GPS"></div>
-        <div class="pill-dot" id="dot-motion" title="Motion"></div>
-        <div class="pill-dot" id="dot-running" title="Detecting"></div>
-      </div>
-    </div>
-    <div class="session-id" id="session-display"></div>
-
-  </div><!-- /sensor-card -->
-
-  <div class="controls-row">
-    <button class="btn btn-start" id="btn-start" onclick="startDetection()">&#9654; Start</button>
-    <button class="btn btn-stop"  id="btn-stop"  onclick="stopDetection()" style="display:none">&#9646;&#9646; Stop</button>
-    <button class="btn-mark" id="btn-mark" onclick="manualMark()" disabled>😮 Pothole</button>
-    <button class="btn-hr" id="btn-hirez" onclick="startHiRez()">HIGH RES</button>
-  </div>
-
-  <!-- Threshold sliders -->
-  <div class="card">
-    <div class="axis-block">
-      <div class="axis-header">
-        <span class="axis-name x">X lateral G-force</span>
-        <span class="axis-thresh" id="thresh-x-val">1.0g</span>
-      </div>
-      <div class="bar-wrap x"><div class="bar-cover" id="bar-x"></div></div>
-      <input class="axis-slider x" type="range" id="slider-x" min="0.1" max="2" step="0.1" value="1.0" oninput="updateThreshX(this.value)">
-    </div>
-    <div class="axis-block">
-      <div class="axis-header">
-        <span class="axis-name y">Y acceleration G-force</span>
-        <span class="axis-thresh" id="thresh-y-val">1.0g</span>
-      </div>
-      <div class="bar-wrap y"><div class="bar-cover" id="bar-y"></div></div>
-      <input class="axis-slider y" type="range" id="slider-y" min="0.1" max="2" step="0.1" value="1.0" oninput="updateThreshY(this.value)">
-    </div>
-    <div class="axis-block">
-      <div class="axis-header">
-        <span class="axis-name z">Z pothole G-force</span>
-        <span class="axis-thresh" id="thresh-z-val">1.0g</span>
-      </div>
-      <div class="bar-wrap z"><div class="bar-cover" id="bar-z"></div></div>
-      <input class="axis-slider z" type="range" id="slider-z" min="0.1" max="2" step="0.1" value="1.0" oninput="updateThreshZ(this.value)">
-    </div>
-  </div>
-
-  <button class="btn-share" id="btn-share" onclick="toggleShare()">
-    &#8679; Share &amp; Export
-    <span class="share-chevron">&#9660;</span>
-  </button>
-
-  <div class="card" id="log-card" style="display:none">
-    <div class="card-title">
-      Logged potholes
-      <span class="count-badge" id="count">0</span>
-    </div>
-    <div class="log" id="log">
-      <div class="log-empty" id="log-empty">No potholes logged yet. Start detection and drive!</div>
-    </div>
-    <div class="btn-export-row">
-      <button class="btn-export" onclick="exportCSV()">&#8681; CSV</button>
-      <button class="btn-export" onclick="exportGPX()">&#128205; GPX</button>
-      <button class="btn-export" onclick="exportKML()">&#127759; KML</button>
-      <button class="btn-export" style="color:#E24B4A" onclick="clearLog()">&#128465; Clear</button>
-    </div>
-    <button class="btn-maps" onclick="openInGoogleMaps()">&#128506; Open in Google Maps</button>
-    <div class="sync-bar">
-      <span class="sync-dot" id="sync-dot"></span>
-      <span class="sync-label" id="sync-label">Sheet sync: ready</span>
-      <a class="sync-link" id="sheet-link" href="#" target="_blank" style="display:none">Open Sheet &#8599;</a>
-    </div>
-  </div>
-
-</div><!-- /main -->
 
 <script>
-// ── Splash ────────────────────────────────────────────────────────────────
-document.getElementById('splash').addEventListener('animationend', function() {
-  this.style.display = 'none';
-});
+// ── Canvas ──────────────────────────────────────────────
+const canvas = document.getElementById('graph');
+const ctx    = canvas.getContext('2d');
 
-// ── Config ────────────────────────────────────────────────────────────────
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw-SPX3KVc-UqPVS5IJx_GSkGOYcSt3GqY3xMOb45qVWKQS5NYSZHNj46P5ahjuSZhAuw/exec';
-const SHEET_URL  = 'https://docs.google.com/spreadsheets/d/1BXHayOuxIZd7H8Oqq5NRRxiFq90teX0k2pdfX1N_wmU/edit';
-const SECRET     = 'spotholekey';
+function resizeCanvas() {
+  const wrap = canvas.parentElement;
+  canvas.width  = wrap.clientWidth  - 16;
+  canvas.height = 130;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
 
-// ── Browser / OS detection ────────────────────────────────────────────────
-const isIOS     = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-const isCriOS   = /CriOS/.test(navigator.userAgent);
-const isAndroid = /Android/.test(navigator.userAgent);
+// ── Data ────────────────────────────────────────────────
+const N = 120;
+const xBuf = new Float32Array(N);
+const yBuf = new Float32Array(N);
+const zBuf = new Float32Array(N);
 
-// iOS Chrome overlay
-if (isIOS && isCriOS) {
-  document.body.insertAdjacentHTML('beforeend', `
-    <div id="safari-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center;gap:16px">
-      <div style="font-size:52px">&#9992;</div>
-      <div style="color:#fff;font-size:20px;font-weight:600">Open in Safari</div>
-      <div style="color:#aeaeb2;font-size:14px;line-height:1.6">Spot Hole needs Safari on iPhone for<br>motion sensors and GPS to work.</div>
-      <div style="color:#aeaeb2;font-size:13px;line-height:1.6">Tap the <strong style="color:#fff">&#9094; Share</strong> button at the bottom<br>of Chrome, then choose <strong style="color:#fff">Open in Safari</strong>.</div>
-      <div style="width:100%;background:#1c1c1e;border-radius:10px;padding:12px 14px;color:#1a73e8;font-size:12px;word-break:break-all;text-align:left">${location.href}</div>
-      <button onclick="navigator.clipboard.writeText(location.href).then(()=>this.textContent='&#10003; Copied!').catch(()=>{})" style="background:#1a73e8;color:#fff;border:none;border-radius:10px;padding:13px 28px;font-size:15px;font-weight:500;cursor:pointer">Copy Link</button>
-    </div>
-  `);
+let isRecording = false;
+let cooldown    = 0;
+let bumpFrames  = 0;          // frames remaining in bump pulse
+let bumpX = 0, bumpY = 0, bumpZ = 0;
+
+const DIRS = ['N','NE','E','SE','S','SW','W','NW'];
+let dirIdx = 2;
+
+// ── SpotOn ──────────────────────────────────────────────
+const overlay   = document.getElementById('spotonOverlay');
+let spotActive  = false;
+let fadeTimer   = null;
+let fadeStart   = null;
+
+function triggerSpotOn() {
+  if (spotActive) return;
+  spotActive = true;
+
+  // Pick a vivid color each time
+  const colors = ['#ff6500','#e60040','#7c00cc','#0077cc','#007a3d'];
+  overlay.style.background = colors[Math.floor(Math.random() * colors.length)];
+  overlay.style.transition = 'opacity 0.15s ease-in';
+  overlay.style.opacity    = '1';
+
+  if (fadeTimer) clearTimeout(fadeTimer);
+
+  // Show 2.5s → fade 1.5s = 4s total
+  fadeTimer = setTimeout(() => {
+    overlay.style.transition = 'opacity 1.5s ease-out';
+    overlay.style.opacity    = '0';
+    setTimeout(() => { spotActive = false; }, 1500);
+  }, 2500);
 }
 
-// ── DOM helpers ───────────────────────────────────────────────────────────
-function setCoord(txt) { document.getElementById('coord-display').textContent = txt; }
-function setPillDot(id, cls) {
-  const el = document.getElementById(id);
-  if (el) el.className = 'pill-dot' + (cls ? ' ' + cls : '');
-}
-function setHDot(id, cls) {
-  const el = document.getElementById(id);
-  if (el) el.className = 'hd' + (cls ? ' ' + cls : '');
+function manualBump() {
+  triggerSpotOn();
+  // inject a bump into the data stream
+  bumpX = (Math.random() - 0.5) * 3.0;
+  bumpY = (Math.random() - 0.5) * 1.5;
+  bumpZ = Math.random() * 2.8;
+  bumpFrames = 8;
 }
 
-// GPS permission state (Android Chrome + iOS Safari 16+)
-if (navigator.permissions) {
-  navigator.permissions.query({ name: 'geolocation' }).then(status => {
-    const showDenied = () => {
-      setCoord(isAndroid
-        ? 'GPS denied — Chrome ⋮ → Settings → Site settings → Location'
-        : 'GPS denied — iOS Settings → Safari → Location → Allow');
-      setPillDot('dot-gps', '');
-    };
-    if (status.state === 'denied') showDenied();
-    status.addEventListener('change', () => {
-      if (status.state === 'granted') setCoord('GPS: ready');
-      else if (status.state === 'denied') showDenied();
-    });
-  }).catch(() => {});
-}
+// ── Simulate data ────────────────────────────────────────
+const rng = () => (Math.random() - 0.5) * 0.18;
 
-// ── Device label ──────────────────────────────────────────────────────────
-function getDeviceLabel() {
-  const ua = navigator.userAgent;
-  let device = 'Unknown';
-  if      (/iPad/.test(ua))    device = 'iPad';
-  else if (/iPhone/.test(ua))  device = 'iPhone';
-  else if (/Android/.test(ua)) {
-    const m = ua.match(/Android[^;]*;\s*([^)]+)\)/);
-    device = m ? m[1].trim() : 'Android';
-  } else if (/Macintosh/.test(ua)) device = 'Mac';
-  else if (/Windows/.test(ua))     device = 'Windows';
-  let browser = 'Browser';
-  if      (/CriOS/.test(ua))                        browser = 'Chrome iOS';
-  else if (/FxiOS/.test(ua))                        browser = 'Firefox iOS';
-  else if (/Safari/.test(ua) && !/Chrome/.test(ua)) browser = 'Safari';
-  else if (/Chrome/.test(ua))                       browser = 'Chrome';
-  else if (/Firefox/.test(ua))                      browser = 'Firefox';
-  return device + ' / ' + browser;
-}
-const DEVICE = getDeviceLabel();
+function tick() {
+  let x = rng(), y = rng(), z = rng();
 
-// ── Date key + daily persistence ─────────────────────────────────────────
-function getDateKey() {
-  const d = new Date();
-  return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
-}
-function persistToday() {
-  if (!potholes.length) return;
-  try {
-    const key = 'spothole_' + getDateKey();
-    const existing = JSON.parse(localStorage.getItem(key) || '[]');
-    const seen = new Set(existing.map(p => p.session_id + '|' + p.time));
-    const merged = [...existing, ...potholes.filter(p => !seen.has(p.session_id + '|' + p.time))];
-    localStorage.setItem(key, JSON.stringify(merged));
-  } catch(e) {}
-}
-function getAllDayData() {
-  try {
-    const key = 'spothole_' + getDateKey();
-    const stored = JSON.parse(localStorage.getItem(key) || '[]');
-    const seen = new Set(stored.map(p => p.session_id + '|' + p.time));
-    return [...stored, ...potholes.filter(p => !seen.has(p.session_id + '|' + p.time))];
-  } catch(e) { return potholes; }
-}
-
-// ── Session ID ────────────────────────────────────────────────────────────
-function makeSessionId() {
-  const d = new Date(), p = n => String(n).padStart(2,'0');
-  return `sess_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
-}
-const SESSION_ID = makeSessionId();
-document.getElementById('session-display').textContent = SESSION_ID;
-
-if (SHEET_URL && !SHEET_URL.startsWith('YOUR')) {
-  const lnk = document.getElementById('sheet-link');
-  lnk.href = SHEET_URL;
-  lnk.style.display = '';
-}
-
-// ── State ─────────────────────────────────────────────────────────────────
-let running = false, gpsWatchId = null, motionHandler = null;
-let lastGPS = null, potholes = [];
-let lastX = 0, lastY = 0, lastZ = 0;
-let threshX = 1.0, threshY = 1.0, threshZ = 1.0;
-let cooldown = false, markCooldown = false;
-let pendingRows = [], flushTimer = null, totalSynced = 0;
-let motionPermissionGranted = false;
-
-const headings = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
-
-// ── Thresholds ────────────────────────────────────────────────────────────
-function updateThreshX(v) { threshX = parseFloat(v); document.getElementById('thresh-x-val').textContent = v + 'g'; drawGraph(); }
-function updateThreshY(v) { threshY = parseFloat(v); document.getElementById('thresh-y-val').textContent = v + 'g'; drawGraph(); }
-function updateThreshZ(v) { threshZ = parseFloat(v); document.getElementById('thresh-z-val').textContent = v + 'g'; drawGraph(); }
-
-// ── Sync ──────────────────────────────────────────────────────────────────
-function scheduleFlush() {
-  if (flushTimer) return;
-  flushTimer = setTimeout(() => { flushTimer = null; flushToSheet(); }, 10000);
-}
-async function flushToSheet() {
-  if (!pendingRows.length) return;
-  if (!SCRIPT_URL || SCRIPT_URL.startsWith('YOUR')) { setSyncStatus('', 'Sheet sync: not configured'); return; }
-  const rows = pendingRows.splice(0);
-  setSyncStatus('busy', 'Syncing ' + rows.length + ' row(s)…');
-  try {
-    await fetch(SCRIPT_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      body: JSON.stringify({
-        secret: SECRET,
-        sheetName: getDateKey() + '_SpotholeData',
-        rows: rows.map(p => [
-          p.session_id, p.time, p.lat ?? '', p.lon ?? '',
-          p.speed_mph, p.heading_deg ?? '', p.heading_compass,
-          p.x_accel_g, p.y_accel_g, p.z_accel_g, p.type, p.device ?? ''
-        ])
-      })
-    });
-    totalSynced += rows.length;
-    setSyncStatus('ok', `Synced · ${totalSynced} rows · ${new Date().toLocaleTimeString()}`);
-  } catch(err) {
-    pendingRows.unshift(...rows);
-    setSyncStatus('err', 'Sync failed — will retry in 30s');
-    setTimeout(() => { if (pendingRows.length) flushToSheet(); }, 30000);
-  }
-}
-function setSyncStatus(state, msg) {
-  document.getElementById('sync-dot').className = 'sync-dot' + (state ? ' ' + state : '');
-  document.getElementById('sync-label').textContent = msg;
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────
-function degToCompass(deg) {
-  if (deg == null || isNaN(deg)) return '—';
-  return headings[Math.round(deg / 22.5) % 16];
-}
-function mpsToMph(mps) { return (mps * 2.23694).toFixed(1); }
-
-// ── Detection flow ────────────────────────────────────────────────────────
-function startDetection() {
-  running = true;
-  document.getElementById('btn-start').style.display = 'none';
-  document.getElementById('btn-stop').style.display  = '';
-  document.getElementById('btn-mark').disabled = false;
-  setPillDot('dot-running', 'live');
-  setHDot('hd-running', 'live');
-  startGPS();
-  requestMotion();
-}
-
-function stopDetection() {
-  running = false;
-  document.getElementById('btn-start').style.display = '';
-  document.getElementById('btn-stop').style.display  = 'none';
-  document.getElementById('btn-mark').disabled = true;
-  setPillDot('dot-running', '');
-  setHDot('hd-running', '');
-  setPillDot('dot-gps', '');    setHDot('hd-gps', '');
-  setPillDot('dot-motion', ''); setHDot('hd-motion', '');
-  if (gpsWatchId != null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
-  if (motionHandler)       { window.removeEventListener('devicemotion', motionHandler); motionHandler = null; }
-  setCoord('Stopped');
-  stopDisplay();
-  if (pendingRows.length) { clearTimeout(flushTimer); flushTimer = null; flushToSheet(); }
-  persistToday();
-}
-
-function startGPS() {
-  if (!navigator.geolocation) { setCoord('Geolocation not supported'); return; }
-  setCoord('GPS: searching…');
-  gpsWatchId = navigator.geolocation.watchPosition(pos => {
-    lastGPS = pos;
-    const c = pos.coords;
-    setCoord(`${c.latitude.toFixed(5)}, ${c.longitude.toFixed(5)}`);
-    document.getElementById('spd').textContent = c.speed != null && c.speed >= 0 ? mpsToMph(c.speed) : '0.0';
-    document.getElementById('hdg').textContent = c.heading != null && !isNaN(c.heading) ? degToCompass(c.heading) : '—';
-    setPillDot('dot-gps', 'ok'); setHDot('hd-gps', 'ok');
-  }, err => {
-    if (err.code === 1) {
-      setCoord(isAndroid
-        ? 'GPS denied — Chrome ⋮ → Settings → Site settings → Location'
-        : isCriOS
-          ? 'GPS denied — iOS Settings → Chrome → Location → While Using'
-          : 'GPS denied — iOS Settings → Safari → Location → Allow');
-    } else {
-      setCoord('GPS: ' + err.message);
+  // Auto-bump while recording
+  if (isRecording) {
+    if (cooldown > 0) { cooldown--; }
+    else if (Math.random() < 0.012) {
+      bumpX = (Math.random() - 0.5) * 2.8;
+      bumpY = (Math.random() - 0.5) * 1.4;
+      bumpZ = Math.random() * 2.5 + 0.3;
+      bumpFrames = 8;
+      cooldown   = 45;
+      triggerSpotOn();
     }
-    setPillDot('dot-gps', ''); setHDot('hd-gps', '');
-  }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 });
-}
+  }
 
-function requestMotion() {
-  if (typeof DeviceMotionEvent === 'undefined') { return; }
-  if (motionPermissionGranted) { attachMotionHandler(); return; }
-  if (typeof DeviceMotionEvent.requestPermission === 'function') {
-    DeviceMotionEvent.requestPermission()
-      .then(s => {
-        if (s === 'granted') { motionPermissionGranted = true; attachMotionHandler(); }
-      })
-      .catch(() => {});
-  } else {
-    motionPermissionGranted = true;
-    attachMotionHandler();
+  if (bumpFrames > 0) {
+    const env = bumpFrames / 8;
+    x += bumpX * env;
+    y += bumpY * env;
+    z += bumpZ * env;
+    bumpFrames--;
+  }
+
+  // Shift buffer
+  xBuf.copyWithin(0, 1); xBuf[N-1] = x;
+  yBuf.copyWithin(0, 1); yBuf[N-1] = y;
+  zBuf.copyWithin(0, 1); zBuf[N-1] = z;
+
+  // Update readouts
+  document.getElementById('xVal').textContent = Math.abs(x).toFixed(1);
+  document.getElementById('yVal').textContent = Math.abs(y).toFixed(1);
+  document.getElementById('zVal').textContent = Math.abs(z).toFixed(1);
+
+  if (isRecording) {
+    const spd = (Math.random() * 3 + 0.5).toFixed(1);
+    document.getElementById('speedVal').textContent = spd;
+    if (Math.random() < 0.01) {
+      dirIdx = (dirIdx + (Math.random() < 0.5 ? 1 : -1) + 8) % 8;
+      document.getElementById('dirVal').textContent = DIRS[dirIdx];
+    }
   }
 }
 
-function attachMotionHandler() {
-  if (motionHandler) return;
-  motionHandler = e => {
-    const ag = (e.acceleration && e.acceleration.x != null && e.acceleration.z != null)
-      ? e.acceleration : e.accelerationIncludingGravity;
-    if (!ag) return;
-    const toG = v => v != null ? Math.abs(v) / 9.81 : 0;
-    lastX = toG(ag.x);
-    lastY = toG(ag.y);
-    lastZ = toG(ag.z);
-    // Detection runs at full sensor rate for accuracy
-    if (running && !cooldown && lastGPS) {
-      if (lastX > threshX || lastY > threshY || lastZ > threshZ) triggerDetection('auto');
-    }
-    setPillDot('dot-motion', 'ok'); setHDot('hd-motion', 'ok');
-  };
-  window.addEventListener('devicemotion', motionHandler);
-  startDisplay();
-}
-
-// ── Throttled display + scrolling graph (4 Hz) ────────────────────────────
-const GRAPH_LEN = 30;   // samples shown (~15 s at 2 Hz)
-const gBuf = { x: new Array(GRAPH_LEN).fill(0), y: new Array(GRAPH_LEN).fill(0), z: new Array(GRAPH_LEN).fill(0) };
-let displayTimer = null;
-
-function startDisplay() {
-  if (displayTimer) return;
-  displayTimer = setInterval(() => {
-    // Update numeric readouts at 2 Hz — easy on CPU/battery
-    document.getElementById('xval').textContent = lastX.toFixed(1);
-    document.getElementById('yval').textContent = lastY.toFixed(1);
-    document.getElementById('zval').textContent = lastZ.toFixed(1);
-    // Update bars
-    document.getElementById('bar-x').style.width = Math.max(0, 100 - Math.min(100, (lastX / threshX) * 100)) + '%';
-    document.getElementById('bar-y').style.width = Math.max(0, 100 - Math.min(100, (lastY / threshY) * 100)) + '%';
-    document.getElementById('bar-z').style.width = Math.max(0, 100 - Math.min(100, (lastZ / threshZ) * 100)) + '%';
-    // Push sample into rolling buffers
-    gBuf.x.push(lastX); gBuf.x.shift();
-    gBuf.y.push(lastY); gBuf.y.shift();
-    gBuf.z.push(lastZ); gBuf.z.shift();
-    drawGraph();
-  }, 500);   // 2 Hz display refresh
-}
-
-function stopDisplay() {
-  if (displayTimer) { clearInterval(displayTimer); displayTimer = null; }
-}
-
+// ── Draw graph ───────────────────────────────────────────
 function drawGraph() {
-  const canvas = document.getElementById('accel-graph');
-  if (!canvas) return;
-  // Size canvas to actual pixel width
-  if (canvas.width !== canvas.offsetWidth) canvas.width = canvas.offsetWidth;
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
-  const scale = Math.max(threshX, threshY, threshZ, 0.2);
-  const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
 
-  // Background
-  ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = dark ? '#2c2c2e' : '#f2f2f7';
-  ctx.fillRect(0, 0, W, H);
+  // background
+  ctx.fillStyle = '#efefef';
+  ctx.fillRect(0, 0, w, h);
 
-  // Zero line + threshold line
-  ctx.setLineDash([4, 4]);
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = dark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.1)';
-  ctx.beginPath();
-  ctx.moveTo(0, H * 0.5); ctx.lineTo(W, H * 0.5);   // zero
-  ctx.moveTo(0, 2);        ctx.lineTo(W, 2);           // max = threshold
-  ctx.stroke();
-  ctx.setLineDash([]);
+  // dashed centre line
+  ctx.save();
+  ctx.strokeStyle = '#d0d0d0';
+  ctx.lineWidth   = 1;
+  ctx.setLineDash([5, 5]);
+  const mid = h * 0.38;
+  ctx.beginPath(); ctx.moveTo(0, mid); ctx.lineTo(w, mid); ctx.stroke();
+  ctx.restore();
 
-  // Draw axis traces — X=red, Y=green, Z=yellow
-  const colors = { x:'#FF453A', y:'#30D158', z:'#FFD60A' };
+  // draw each axis
+  const bufs   = [xBuf, yBuf, zBuf];
+  const colors = ['#e74c3c','#27ae60','#d4a800'];
 
-  ['x','y','z'].forEach(axis => {
-    const data = gBuf[axis];
-    ctx.strokeStyle = colors[axis];
-    ctx.lineWidth = 1.5;
+  bufs.forEach((buf, i) => {
+    ctx.save();
+    ctx.strokeStyle = colors[i];
+    ctx.lineWidth   = 3.8;
+    ctx.lineJoin    = 'round';
+    ctx.lineCap     = 'round';
     ctx.beginPath();
-    data.forEach((v, i) => {
-      const px = (i / (GRAPH_LEN - 1)) * W;
-      const py = H - (v / scale) * H;          // bottom = 0, top = scale
-      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
-    });
+    for (let j = 0; j < N; j++) {
+      const px = (j / (N - 1)) * w;
+      const py = h / 2 - (buf[j] / 3.5) * (h / 2) * 0.9;
+      j === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
     ctx.stroke();
+    ctx.restore();
   });
-
-  // Legend: X Y Z — top-right, spaced further apart
-  [['X', colors.x], ['Y', colors.y], ['Z', colors.z]].forEach(([lbl, col], i) => {
-    const cx = W - 66 + i * 24;
-    ctx.fillStyle = col;
-    ctx.beginPath();
-    ctx.arc(cx, 9, 4, 0, Math.PI*2);
-    ctx.fill();
-    ctx.fillStyle = dark ? 'rgba(255,255,255,.65)' : 'rgba(0,0,0,.5)';
-    ctx.font = 'bold 10px -apple-system,sans-serif';
-    ctx.fillText(lbl, cx + 6, 13);
-  });
-
-  // Pothole marker — red vertical line
-  if (graphMarkTime) {
-    const sampsAgo = Math.round((Date.now() - graphMarkTime) / 500);
-    if (sampsAgo < GRAPH_LEN) {
-      const px = ((GRAPH_LEN - 1 - sampsAgo) / (GRAPH_LEN - 1)) * W;
-      ctx.setLineDash([]);
-      ctx.strokeStyle = 'rgba(255,69,58,0.85)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(px, 0);
-      ctx.lineTo(px, H);
-      ctx.stroke();
-    } else {
-      graphMarkTime = null;
-    }
-  }
 }
 
-// ── Hi-Rez burst recorder (10 Hz × 15 s = 150 rows) ──────────────────────
-const HIREZ_HZ       = 10;
-const HIREZ_SECONDS  = 15;
-const HIREZ_SAMPLES  = HIREZ_HZ * HIREZ_SECONDS;   // 150
-let hirezTimer = null;
-let hirezCount = 0;
-let graphMarkTime = null;
-
-function startHiRez() {
-  if (hirezTimer) return;            // already recording
-  const btn = document.getElementById('btn-hirez');
-  btn.classList.add('recording');
-  btn.disabled = true;
-  hirezCount = 0;
-  const remaining = { v: HIREZ_SECONDS };
-
-  hirezTimer = setInterval(() => {
-    // Sample at 10 Hz
-    const c = lastGPS ? lastGPS.coords : null;
-    const row = {
-      session_id:      SESSION_ID,
-      time:            new Date().toISOString(),
-      lat:             c ? c.latitude  : null,
-      lon:             c ? c.longitude : null,
-      speed_mph:       c && c.speed != null && c.speed >= 0 ? parseFloat(mpsToMph(c.speed)) : 0,
-      heading_deg:     c && c.heading != null ? Math.round(c.heading) : null,
-      heading_compass: c && c.heading != null ? degToCompass(c.heading) : '—',
-      x_accel_g:       parseFloat(lastX.toFixed(3)),
-      y_accel_g:       parseFloat(lastY.toFixed(3)),
-      z_accel_g:       parseFloat(lastZ.toFixed(3)),
-      type:            'hirez',
-      device:          DEVICE
-    };
-    pendingRows.push(row);
-    hirezCount++;
-
-    // Update countdown every second (every 10 samples)
-    if (hirezCount % HIREZ_HZ === 0) {
-      remaining.v = HIREZ_SECONDS - hirezCount / HIREZ_HZ;
-      btn.textContent = remaining.v + 's';
-    }
-
-    if (hirezCount >= HIREZ_SAMPLES) {
-      clearInterval(hirezTimer);
-      hirezTimer = null;
-      btn.classList.remove('recording');
-      btn.disabled = false;
-      btn.textContent = 'HR';
-      // Flush immediately — don't wait for the 10s schedule
-      clearTimeout(flushTimer); flushTimer = null;
-      flushToSheet();
-      // Persist to localStorage under hirez key for today
-      try {
-        const key = 'spothole_hirez_' + getDateKey();
-        const existing = JSON.parse(localStorage.getItem(key) || '[]');
-        const fresh = pendingRows.filter(r => r.type === 'hirez');  // already spliced if flush ran
-        localStorage.setItem(key, JSON.stringify([...existing, ...fresh]));
-      } catch(e) {}
-      setSyncStatus('busy', `Hi-Rez: ${HIREZ_SAMPLES} rows queued…`);
-    }
-  }, 1000 / HIREZ_HZ);   // 100 ms interval
+// ── Animation loop ───────────────────────────────────────
+let frame = 0;
+function loop() {
+  requestAnimationFrame(loop);
+  frame++;
+  if (frame % 4 === 0 && isRecording) tick();
+  drawGraph();
 }
+loop();
 
-// ── Detection ─────────────────────────────────────────────────────────────
-function triggerDetection(type) {
-  cooldown = true;
-  setTimeout(() => { cooldown = false; }, 3000);
-  const c = lastGPS ? lastGPS.coords : null;
-  const entry = {
-    session_id:      SESSION_ID,
-    time:            new Date().toISOString(),
-    lat:             c ? c.latitude  : null,
-    lon:             c ? c.longitude : null,
-    speed_mph:       c && c.speed != null && c.speed >= 0 ? parseFloat(mpsToMph(c.speed)) : 0,
-    heading_deg:     c && c.heading != null ? Math.round(c.heading) : null,
-    heading_compass: c && c.heading != null ? degToCompass(c.heading) : '—',
-    x_accel_g:       parseFloat(lastX.toFixed(3)),
-    y_accel_g:       parseFloat(lastY.toFixed(3)),
-    z_accel_g:       parseFloat(lastZ.toFixed(3)),
-    type,
-    device: DEVICE
-  };
-  potholes.push(entry);
-  pendingRows.push(entry);
-  addLogItem(entry);
-  const sc = document.getElementById('sensor-card');
-  sc.classList.remove('flash-pothole');
-  void sc.offsetWidth;
-  sc.classList.add('flash-pothole');
-  document.getElementById('count').textContent = potholes.length;
-  setSyncStatus('busy', 'Syncing in ~10s…');
-  scheduleFlush();
-}
-
-function manualMark() {
-  if (markCooldown) return;
-  const btn = document.getElementById('btn-mark');
-  btn.classList.add('active'); btn.disabled = true; markCooldown = true;
-  graphMarkTime = Date.now();
-  triggerDetection('manual');
-  setTimeout(() => { btn.classList.remove('active'); btn.disabled = false; markCooldown = false; }, 1000);
-}
-
-// ── Log UI ────────────────────────────────────────────────────────────────
-function addLogItem(e) {
-  const empty = document.getElementById('log-empty');
-  if (empty) empty.remove();
-  const log = document.getElementById('log');
-  const div = document.createElement('div');
-  div.className = 'log-item';
-  const latStr = e.lat != null ? e.lat.toFixed(5) : 'no GPS';
-  const lonStr = e.lon != null ? e.lon.toFixed(5) : '';
-  const t = new Date(e.time).toLocaleTimeString();
-  const peak = Math.max(e.x_accel_g ?? 0, e.y_accel_g ?? 0, e.z_accel_g ?? 0);
-  const axis = ['X','Y','Z'][[e.x_accel_g??0, e.y_accel_g??0, e.z_accel_g??0].indexOf(peak)];
-  div.innerHTML = `
-    <div class="log-dot ${e.type==='auto'?'dot-auto':'dot-manual'}"></div>
-    <div class="log-info">
-      <div class="log-coords">${latStr}${lonStr ? ', '+lonStr : ''}</div>
-      <div class="log-meta">${t} &middot; ${e.speed_mph} mph &middot; ${e.heading_compass} &middot; peak ${peak.toFixed(1)}g (${axis})<span class="log-badge ${e.type==='auto'?'badge-auto':'badge-manual'}">${e.type}</span></div>
-    </div>`;
-  log.insertBefore(div, log.firstChild);
-}
-
-// ── Export ────────────────────────────────────────────────────────────────
-const CSV_HDR = 'session_id,time,latitude,longitude,speed_mph,heading_deg,heading_compass,x_accel_g,y_accel_g,z_accel_g,type,device\n';
-
-function exportCSV() {
-  persistToday();
-  const data = getAllDayData();
-  if (!data.length) { alert('No potholes logged yet.'); return; }
-  const rows = data.map(p =>
-    `${p.session_id},${p.time},${p.lat??''},${p.lon??''},${p.speed_mph},${p.heading_deg??''},${p.heading_compass},${p.x_accel_g??''},${p.y_accel_g??''},${p.z_accel_g},"${p.type}","${p.device??''}"`
-  ).join('\n');
-  download(`${getDateKey()}_SpotholeData.csv`, CSV_HDR + rows, 'text/csv');
-}
-
-function exportGPX() {
-  persistToday();
-  const data = getAllDayData();
-  if (!data.length) { alert('No potholes logged yet.'); return; }
-  const pts = data.filter(p=>p.lat&&p.lon).map(p=>
-    `  <wpt lat="${p.lat}" lon="${p.lon}"><time>${p.time}</time><name>${p.type} Z:${p.z_accel_g}g</name><desc>Session: ${p.session_id}, Speed: ${p.speed_mph} mph, Heading: ${p.heading_compass}, X: ${p.x_accel_g??''}g, Y: ${p.y_accel_g??''}g, Z: ${p.z_accel_g}g, Device: ${p.device??''}</desc></wpt>`
-  ).join('\n');
-  download(`${getDateKey()}_SpotholeData.gpx`, `<?xml version="1.0"?>\n<gpx version="1.1" creator="Spot Hole">\n${pts}\n</gpx>`, 'application/gpx+xml');
-}
-
-function exportKML() {
-  persistToday();
-  const data = getAllDayData();
-  if (!data.length) { alert('No potholes logged yet.'); return; }
-  const placemarks = data.filter(p=>p.lat&&p.lon).map(p => {
-    const color = p.type === 'auto' ? 'ff0000ff' : 'ffff0000';
-    return `  <Placemark>
-    <name>${p.type==='auto'?'&#128308;':'&#128309;'} Z:${p.z_accel_g}g</name>
-    <description>Time: ${p.time}&#10;Type: ${p.type}&#10;Speed: ${p.speed_mph} mph&#10;Heading: ${p.heading_compass}&#10;X: ${p.x_accel_g??''}g  Y: ${p.y_accel_g??''}g  Z: ${p.z_accel_g}g&#10;Session: ${p.session_id}&#10;Device: ${p.device??''}</description>
-    <Style><IconStyle><color>${color}</color></IconStyle></Style>
-    <Point><coordinates>${p.lon},${p.lat},0</coordinates></Point>
-  </Placemark>`;
-  }).join('\n');
-  download(`${getDateKey()}_SpotholeData.kml`,
-    `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n  <name>Spot Hole ${getDateKey()}</name>\n${placemarks}\n</Document>\n</kml>`,
-    'application/vnd.google-earth.kml+xml');
-}
-
-function openInGoogleMaps() {
-  const pts = potholes.filter(p => p.lat && p.lon);
-  if (!pts.length) { alert('No GPS coordinates to show.'); return; }
-  let url;
-  if (pts.length === 1) {
-    url = `https://www.google.com/maps/search/?api=1&query=${pts[0].lat},${pts[0].lon}`;
+// ── Recording toggle ──────────────────────────────────────
+function toggleRecording() {
+  isRecording = !isRecording;
+  const btn    = document.getElementById('startBtn');
+  const status = document.getElementById('statusText');
+  if (isRecording) {
+    btn.style.background = '#e74c3c';
+    document.getElementById('startIcon').textContent  = '⏹';
+    document.getElementById('startLabel').textContent = 'Stop';
+    status.textContent = 'Recording';
   } else {
-    const shown = pts.slice(0, 10);
-    const origin = `${shown[0].lat},${shown[0].lon}`;
-    const dest   = `${shown[shown.length-1].lat},${shown[shown.length-1].lon}`;
-    const wpts   = shown.slice(1,-1).map(p=>`${p.lat},${p.lon}`).join('|');
-    url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}${wpts?'&waypoints='+wpts:''}`;
+    btn.style.background = '#2ecc71';
+    document.getElementById('startIcon').textContent  = '▶';
+    document.getElementById('startLabel').textContent = 'Start';
+    status.textContent = 'Stopped';
   }
-  window.open(url, '_blank');
 }
 
-function download(name, content, type) {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([content],{type}));
-  a.download = name; a.click();
+// ── Sliders ──────────────────────────────────────────────
+function onSlider(input, labelId, color) {
+  const v   = parseFloat(input.value);
+  const pct = ((v - 0.1) / (3 - 0.1)) * 100;
+  input.style.background =
+    `linear-gradient(to right, ${color} 0%, ${color} ${pct}%, #d8d8d8 ${pct}%, #d8d8d8 100%)`;
+  document.getElementById(labelId).textContent = v.toFixed(1) + 'g';
 }
 
-function toggleShare() {
-  const card = document.getElementById('log-card');
-  const btn  = document.getElementById('btn-share');
-  const open = card.style.display === 'none';
-  card.style.display = open ? '' : 'none';
-  btn.classList.toggle('open', open);
-}
-
-function clearLog() {
-  const total = getAllDayData().length;
-  if (!total) return;
-  if (!confirm(`Clear all ${total} potholes logged today?`)) return;
-  potholes = [];
-  try { localStorage.removeItem('spothole_' + getDateKey()); } catch(e) {}
-  document.getElementById('log').innerHTML = '<div class="log-empty" id="log-empty">No potholes logged yet. Start detection and drive!</div>';
-  document.getElementById('count').textContent = '0';
-}
+// Init slider fills on load
+(function initSliders() {
+  const cfg = [
+    { id: 'xSlider', lbl: 'xValLbl', color: '#e74c3c' },
+    { id: 'ySlider', lbl: 'yValLbl', color: '#27ae60' },
+    { id: 'zSlider', lbl: 'zValLbl', color: '#d4a800' },
+  ];
+  cfg.forEach(({ id, lbl, color }) => {
+    const el = document.getElementById(id);
+    onSlider(el, lbl, color);
+  });
+})();
 </script>
+</body>
+</html>
