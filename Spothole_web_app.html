@@ -487,8 +487,8 @@ function attachMotion() {
     if (!ag) return;
     const toG = v => v != null ? Math.abs(v) / 9.81 : 0;
     lastX = toG(ag.x);
-    lastY = toG(ag.y);
-    lastZ = toG(ag.z);
+    lastY = toG(ag.z);  // physical Z (front/back) → Y Acceleration slot
+    lastZ = toG(ag.y);  // physical Y (up/down)    → Z Pothole slot
     // Threshold detection at full sensor rate
     if (isRecording && !detectionCooldown) {
       // Determine which axis triggered — pick the one most over its threshold
