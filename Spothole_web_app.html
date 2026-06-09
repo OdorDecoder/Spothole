@@ -399,11 +399,13 @@ const ctx    = canvas.getContext('2d');
 
 function resizeCanvas() {
   const wrap = canvas.parentElement;
-  canvas.width  = wrap.clientWidth  - 16;
+  const w = wrap.offsetWidth || 340;
+  canvas.width  = w - 16;
   canvas.height = 95;
 }
-resizeCanvas();
+window.addEventListener('load',   resizeCanvas);
 window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
 
 // ── Data ────────────────────────────────────────────────
 const N = 120;
@@ -455,26 +457,27 @@ function manualBump() {
 }
 
 // ── Simulate data ────────────────────────────────────────
-const rng = () => (Math.random() - 0.5) * 0.18;
+// Realistic idle road noise ~0.05-0.20g, bumps up to threshold
+const rng = () => (Math.random() - 0.5) * 0.30;
 
 function tick() {
-  let x = rng(), y = rng(), z = rng();
+  let x = rng(), y = rng(), z = Math.abs(rng()) * 0.5; // z always positive
 
-  // Auto-bump while recording
-  if (isRecording) {
-    if (cooldown > 0) { cooldown--; }
-    else if (Math.random() < 0.012) {
-      bumpX = (Math.random() - 0.5) * 2.8;
-      bumpY = (Math.random() - 0.5) * 1.4;
-      bumpZ = Math.random() * 2.5 + 0.3;
-      bumpFrames = 8;
-      cooldown   = 45;
-      triggerSpotOn();
-    }
+  // Auto-bump (always active so graph is live; more frequent when recording)
+  const bumpChance = isRecording ? 0.018 : 0.006;
+  if (cooldown > 0) {
+    cooldown--;
+  } else if (Math.random() < bumpChance) {
+    bumpX = (Math.random() - 0.5) * xThreshold * 2.2;
+    bumpY = (Math.random() - 0.5) * yThreshold * 2.2;
+    bumpZ = Math.random() * zThreshold * 2.5 + zThreshold * 0.3;
+    bumpFrames = 10;
+    cooldown   = isRecording ? 40 : 80;
+    if (isRecording) triggerSpotOn();
   }
 
   if (bumpFrames > 0) {
-    const env = bumpFrames / 8;
+    const env = bumpFrames / 10;
     x += bumpX * env;
     y += bumpY * env;
     z += bumpZ * env;
@@ -547,7 +550,7 @@ let frame = 0;
 function loop() {
   requestAnimationFrame(loop);
   frame++;
-  if (frame % 4 === 0 && isRecording) tick();
+  if (frame % 4 === 0) tick();  // always live
   drawGraph();
 }
 loop();
