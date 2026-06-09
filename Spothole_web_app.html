@@ -85,9 +85,9 @@
     font-weight: 700;
     line-height: 1.4;
   }
-  .xyz-symbol.x { color: #e74c3c; }
+  .xyz-symbol.x { color: #1a6fd4; }
   .xyz-symbol.y { color: #27ae60; }
-  .xyz-symbol.z { color: #d4a800; }
+  .xyz-symbol.z { color: #e74c3c; }
 
   /* Graph */
   .graph-wrap {
@@ -100,7 +100,7 @@
   canvas#graph {
     display: block;
     width: 100%;
-    height: 130px;
+    height: 95px;
   }
   .graph-legend {
     position: absolute;
@@ -242,9 +242,9 @@
     letter-spacing: 0.8px;
     text-transform: uppercase;
   }
-  .slider-label.x { color: #e74c3c; }
+  .slider-label.x { color: #1a6fd4; }
   .slider-label.y { color: #27ae60; }
-  .slider-label.z { color: #d4a800; }
+  .slider-label.z { color: #e74c3c; }
   .slider-val { font-size: 13px; color: #555; font-weight: 500; }
 
   input[type=range] {
@@ -274,9 +274,9 @@
   }
   input[type=range]::-webkit-slider-thumb:active { transform: scale(1.15); }
 
-  input[type=range].sx::-webkit-slider-thumb { background: #e74c3c; }
+  input[type=range].sx::-webkit-slider-thumb { background: #1a6fd4; }
   input[type=range].sy::-webkit-slider-thumb { background: #27ae60; }
-  input[type=range].sz::-webkit-slider-thumb { background: #d4a800; }
+  input[type=range].sz::-webkit-slider-thumb { background: #e74c3c; }
 </style>
 </head>
 <body>
@@ -322,16 +322,16 @@
       <canvas id="graph"></canvas>
       <div class="graph-legend">
         <div class="legend-item">
-          <div class="legend-dot" style="background:#e74c3c"></div>
-          <span style="color:#e74c3c">X</span>
+          <div class="legend-dot" style="background:#1a6fd4"></div>
+          <span style="color:#1a6fd4">X</span>
         </div>
         <div class="legend-item">
           <div class="legend-dot" style="background:#27ae60"></div>
           <span style="color:#27ae60">Y</span>
         </div>
         <div class="legend-item">
-          <div class="legend-dot" style="background:#d4a800"></div>
-          <span style="color:#d4a800">Z</span>
+          <div class="legend-dot" style="background:#e74c3c"></div>
+          <span style="color:#e74c3c">Z</span>
         </div>
       </div>
     </div>
@@ -369,7 +369,7 @@
         <span class="slider-val" id="xValLbl">0.8g</span>
       </div>
       <input type="range" class="sx" id="xSlider" min="0.1" max="3" step="0.1" value="0.8"
-        oninput="onSlider(this,'xValLbl','#e74c3c')">
+        oninput="onSlider(this,'xValLbl','#1a6fd4')">
     </div>
     <div class="slider-row">
       <div class="slider-header">
@@ -385,7 +385,7 @@
         <span class="slider-val" id="zValLbl">0.6g</span>
       </div>
       <input type="range" class="sz" id="zSlider" min="0.1" max="3" step="0.1" value="0.6"
-        oninput="onSlider(this,'zValLbl','#d4a800')">
+        oninput="onSlider(this,'zValLbl','#e74c3c')">
     </div>
   </div>
 
@@ -399,7 +399,7 @@ const ctx    = canvas.getContext('2d');
 function resizeCanvas() {
   const wrap = canvas.parentElement;
   canvas.width  = wrap.clientWidth  - 16;
-  canvas.height = 130;
+  canvas.height = 95;
 }
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
@@ -520,7 +520,7 @@ function drawGraph() {
 
   // draw each axis
   const bufs   = [xBuf, yBuf, zBuf];
-  const colors = ['#e74c3c','#27ae60','#d4a800'];
+  const colors = ['#1a6fd4','#27ae60','#e74c3c'];
 
   bufs.forEach((buf, i) => {
     ctx.save();
@@ -579,9 +579,9 @@ function onSlider(input, labelId, color) {
 // Init slider fills on load
 (function initSliders() {
   const cfg = [
-    { id: 'xSlider', lbl: 'xValLbl', color: '#e74c3c' },
+    { id: 'xSlider', lbl: 'xValLbl', color: '#1a6fd4' },
     { id: 'ySlider', lbl: 'yValLbl', color: '#27ae60' },
-    { id: 'zSlider', lbl: 'zValLbl', color: '#d4a800' },
+    { id: 'zSlider', lbl: 'zValLbl', color: '#e74c3c' },
   ];
   cfg.forEach(({ id, lbl, color }) => {
     const el = document.getElementById(id);
