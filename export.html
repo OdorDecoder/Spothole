@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Spothole – Export</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #dcdcdc;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+  }
+  .phone { width: 390px; background: #dcdcdc; padding: 14px; }
+
+  .panel {
+    background: white;
+    border-radius: 18px;
+    padding: 20px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  }
+
+  .back-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 17px;
+    font-weight: 600;
+    color: #1a6fd4;
+    text-decoration: none;
+    margin-bottom: 18px;
+  }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: #111;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 18px;
+  }
+
+  .stat-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .stat-box {
+    flex: 1;
+    background: #f5f5f5;
+    border-radius: 12px;
+    padding: 14px 10px;
+    text-align: center;
+  }
+  .stat-num {
+    font-size: 32px;
+    font-weight: 300;
+    color: #111;
+    line-height: 1;
+  }
+  .stat-lbl {
+    font-size: 11px;
+    color: #999;
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: #aaa;
+    margin-bottom: 10px;
+  }
+
+  .export-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 16px;
+    border: none;
+    border-radius: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 10px;
+    transition: opacity 0.15s;
+  }
+  .export-btn:last-child { margin-bottom: 0; }
+  .export-btn:active { opacity: 0.7; }
+  .export-btn .icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .export-btn .info { text-align: left; }
+  .export-btn .info .desc { font-size: 12px; font-weight: 400; color: #999; margin-top: 2px; }
+
+  .btn-csv  { background: #e8f5e9; color: #27ae60; }
+  .btn-csv  .icon { background: #27ae60; }
+  .btn-gpx  { background: #e3f2fd; color: #1a6fd4; }
+  .btn-gpx  .icon { background: #1a6fd4; }
+  .btn-kml  { background: #fff3e0; color: #e67e22; }
+  .btn-kml  .icon { background: #e67e22; }
+
+  .empty-state {
+    text-align: center;
+    padding: 30px 20px;
+    color: #bbb;
+  }
+  .empty-state .emoji { font-size: 48px; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; }
+
+  .date-picker {
+    width: 100%;
+    padding: 10px 14px;
+    border: 2px solid #e8e8e8;
+    border-radius: 12px;
+    font-size: 15px;
+    color: #333;
+    background: #f9f9f9;
+    margin-bottom: 14px;
+    outline: none;
+  }
+  .date-picker:focus { border-color: #1a6fd4; }
+</style>
+</head>
+<body>
+<div class="phone">
+
+  <a class="back-btn" href="Spothole_web_app.html">&#8592; Back</a>
+
+  <div class="panel">
+    <h1>Share &amp; Export</h1>
+    <p class="subtitle">Download your pothole data in your preferred format.</p>
+
+    <!-- Stats -->
+    <div class="stat-row">
+      <div class="stat-box">
+        <div class="stat-num" id="statTotal">0</div>
+        <div class="stat-lbl">Total</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-num" id="statAuto">0</div>
+        <div class="stat-lbl">Auto</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-num" id="statManual">0</div>
+        <div class="stat-lbl">Manual</div>
+      </div>
+    </div>
+
+    <!-- Date filter -->
+    <div class="section-title">Date</div>
+    <select class="date-picker" id="datePicker" onchange="loadDate()"></select>
+
+    <!-- Empty state -->
+    <div class="empty-state" id="emptyState" style="display:none">
+      <div class="emoji">🗺️</div>
+      <p>No potholes logged yet.<br>Head back and start recording!</p>
+    </div>
+
+    <!-- Export buttons -->
+    <div id="exportButtons" style="display:none">
+      <div class="section-title">Export As</div>
+      <button class="export-btn btn-csv" onclick="exportCSV()">
+        <div class="icon" style="color:white">📄</div>
+        <div class="info">
+          CSV Spreadsheet
+          <div class="desc">Open in Excel, Google Sheets, or Numbers</div>
+        </div>
+      </button>
+      <button class="export-btn btn-gpx" onclick="exportGPX()">
+        <div class="icon" style="color:white">🗺️</div>
+        <div class="info">
+          GPX Track File
+          <div class="desc">Import into Garmin, Strava, or mapping apps</div>
+        </div>
+      </button>
+      <button class="export-btn btn-kml" onclick="exportKML()">
+        <div class="icon" style="color:white">📍</div>
+        <div class="info">
+          KML / Google Maps
+          <div class="desc">Open in Google Earth or Google Maps</div>
+        </div>
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let currentData = [];
+
+// ── Load available dates from localStorage ────────────────
+function getAvailableDates() {
+  const dates = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith('spothole_')) {
+      dates.push(k.replace('spothole_', ''));
+    }
+  }
+  return dates.sort().reverse();
+}
+
+function formatDateLabel(key) {
+  // key = YYYYMMDD
+  const y = key.slice(0, 4), m = key.slice(4, 6), d = key.slice(6, 8);
+  return new Date(`${y}-${m}-${d}`).toLocaleDateString(undefined, {
+    weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
+  });
+}
+
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function populatePicker() {
+  const sel = document.getElementById('datePicker');
+  const dates = getAvailableDates();
+
+  // Always include today even if empty
+  if (!dates.includes(todayKey())) dates.unshift(todayKey());
+
+  sel.innerHTML = '';
+  dates.forEach(k => {
+    const opt = document.createElement('option');
+    opt.value = k;
+    opt.textContent = formatDateLabel(k);
+    sel.appendChild(opt);
+  });
+}
+
+function loadDate() {
+  const key = 'spothole_' + document.getElementById('datePicker').value;
+  try {
+    currentData = JSON.parse(localStorage.getItem(key) || '[]');
+  } catch(e) {
+    currentData = [];
+  }
+
+  document.getElementById('statTotal').textContent  = currentData.length;
+  document.getElementById('statAuto').textContent   = currentData.filter(p => p.type === 'auto').length;
+  document.getElementById('statManual').textContent = currentData.filter(p => p.type === 'manual').length;
+
+  const hasData = currentData.length > 0;
+  document.getElementById('emptyState').style.display    = hasData ? 'none'  : '';
+  document.getElementById('exportButtons').style.display = hasData ? ''      : 'none';
+}
+
+// ── Download helper ───────────────────────────────────────
+function download(filename, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+function dateTag() {
+  return document.getElementById('datePicker').value || todayKey();
+}
+
+// ── CSV ───────────────────────────────────────────────────
+function exportCSV() {
+  const cols = ['session_id','time','latitude','longitude','speed_mph',
+                'heading_deg','heading_compass','x_accel_g','y_accel_g','z_accel_g','type','device'];
+  const rows = [cols.join(',')];
+  currentData.forEach(p => {
+    rows.push([
+      p.session_id, p.time, p.lat ?? '', p.lon ?? '',
+      p.speed_mph, p.heading_deg ?? '', p.heading_compass,
+      p.x_accel_g, p.y_accel_g, p.z_accel_g, p.type,
+      `"${(p.device || '').replace(/"/g,'""')}"`
+    ].join(','));
+  });
+  download(`spothole_${dateTag()}.csv`, rows.join('\r\n'), 'text/csv');
+}
+
+// ── GPX ───────────────────────────────────────────────────
+function exportGPX() {
+  const wpts = currentData
+    .filter(p => p.lat != null && p.lon != null)
+    .map(p => `  <wpt lat="${p.lat}" lon="${p.lon}">
+    <ele>0</ele>
+    <time>${p.time}</time>
+    <name>${p.type === 'manual' ? 'Manual' : 'Auto'} bump</name>
+    <desc>X:${p.x_accel_g}g Y:${p.y_accel_g}g Z:${p.z_accel_g}g</desc>
+  </wpt>`).join('\n');
+
+  const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Spothole"
+  xmlns="http://www.topografix.com/GPX/1/1">
+${wpts}
+</gpx>`;
+  download(`spothole_${dateTag()}.gpx`, gpx, 'application/gpx+xml');
+}
+
+// ── KML ───────────────────────────────────────────────────
+function exportKML() {
+  const placemarks = currentData
+    .filter(p => p.lat != null && p.lon != null)
+    .map(p => `  <Placemark>
+    <name>${p.type === 'manual' ? '🟡 Manual' : '🔴 Auto'} bump</name>
+    <description>Time: ${p.time}
+X: ${p.x_accel_g}g  Y: ${p.y_accel_g}g  Z: ${p.z_accel_g}g
+Speed: ${p.speed_mph} mph  Heading: ${p.heading_compass}</description>
+    <Point><coordinates>${p.lon},${p.lat},0</coordinates></Point>
+  </Placemark>`).join('\n');
+
+  const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+  <name>Spothole ${dateTag()}</name>
+${placemarks}
+</Document>
+</kml>`;
+  download(`spothole_${dateTag()}.kml`, kml, 'application/vnd.google-earth.kml+xml');
+}
+
+// ── Init ──────────────────────────────────────────────────
+populatePicker();
+loadDate();
+</script>
+</body>
+</html>

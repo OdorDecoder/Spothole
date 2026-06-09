@@ -272,6 +272,36 @@
   input[type=range].sx::-webkit-slider-thumb { background: #1a6fd4; }
   input[type=range].sy::-webkit-slider-thumb { background: #27ae60; }
   input[type=range].sz::-webkit-slider-thumb { background: #e74c3c; }
+
+  /* ── Sync status ── */
+  .sync-line {
+    font-size: 11px;
+    color: #bbb;
+    margin-top: 4px;
+    min-height: 14px;
+    text-align: right;
+  }
+  .sync-line.ok  { color: #27ae60; }
+  .sync-line.err { color: #e74c3c; }
+
+  /* ── Export button ── */
+  .btn-export-page {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    padding: 16px;
+    background: white;
+    border: none;
+    border-radius: 16px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #444;
+    cursor: pointer;
+    text-align: center;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    text-decoration: none;
+  }
+  .btn-export-page:active { opacity: 0.7; }
 </style>
 </head>
 <body>
@@ -340,6 +370,7 @@
         <div class="sdot"></div>
       </div>
     </div>
+    <div class="sync-line" id="syncLine"></div>
   </div>
 
   <!-- ── Buttons ── -->
@@ -356,7 +387,7 @@
   </div>
 
   <!-- ── Sliders ── -->
-  <div class="sliders-panel">
+  <div class="sliders-panel" id="slidersPanel">
     <div class="slider-row">
       <div class="slider-header">
         <span class="slider-label x">X Lateral G-Force</span>
@@ -380,9 +411,16 @@
     </div>
   </div>
 
+  <!-- ── Export link ── -->
+  <a class="btn-export-page" href="export.html">&#8679; Share &amp; Export <span id="exportCount"></span></a>
+
 </div>
 
 <script>
+// ── Config ────────────────────────────────────────────────
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw-SPX3KVc-UqPVS5IJx_GSkGOYcSt3GqY3xMOb45qVWKQS5NYSZHNj46P5ahjuSZhAuw/exec';
+const SECRET     = 'spotholekey';
+
 // ── Thresholds ────────────────────────────────────────────
 let xThreshold = 1.0;
 let yThreshold = 1.0;
@@ -400,6 +438,112 @@ const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 const headings = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
 function degToCompass(d) { return headings[Math.round(d / 22.5) % 16]; }
 function mpsToMph(v) { return (v * 2.23694).toFixed(1); }
+
+// ── Session + device ──────────────────────────────────────
+function makeSessionId() {
+  const d = new Date(), p = n => String(n).padStart(2,'0');
+  return `sess_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
+const SESSION_ID = makeSessionId();
+
+function getDeviceLabel() {
+  const ua = navigator.userAgent;
+  const dev = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android' : 'Unknown';
+  const br  = /CriOS/.test(ua) ? 'Chrome iOS' : /Safari/.test(ua) && !/Chrome/.test(ua) ? 'Safari' : /Chrome/.test(ua) ? 'Chrome' : 'Browser';
+  return `${dev} / ${br}`;
+}
+const DEVICE = getDeviceLabel();
+
+// ── Pothole log + sync ────────────────────────────────────
+let potholes    = [];
+let pendingRows = [];
+let flushTimer  = null;
+let totalSynced = 0;
+
+function getDateKey() {
+  const d = new Date();
+  return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function setSyncStatus(state, msg) {
+  const el = document.getElementById('syncLine');
+  el.className = 'sync-line' + (state ? ' ' + state : '');
+  el.textContent = msg;
+}
+
+function updateExportCount() {
+  const el = document.getElementById('exportCount');
+  if (el && potholes.length) el.textContent = `· ${potholes.length} logged`;
+  else if (el) el.textContent = '';
+}
+
+function scheduleFlush() {
+  if (flushTimer) return;
+  flushTimer = setTimeout(() => { flushTimer = null; flushToSheet(); }, 8000);
+}
+
+async function flushToSheet() {
+  if (!pendingRows.length) return;
+  const rows = pendingRows.splice(0);
+  setSyncStatus('', `Syncing ${rows.length} row(s)…`);
+  try {
+    await fetch(SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      body: JSON.stringify({
+        secret: SECRET,
+        sheetName: getDateKey() + '_SpotholeData',
+        rows: rows.map(p => [
+          p.session_id, p.time, p.lat ?? '', p.lon ?? '',
+          p.speed_mph, p.heading_deg ?? '', p.heading_compass,
+          p.x_accel_g, p.y_accel_g, p.z_accel_g, p.type, p.device
+        ])
+      })
+    });
+    totalSynced += rows.length;
+    setSyncStatus('ok', `Synced · ${totalSynced} rows · ${new Date().toLocaleTimeString()}`);
+  } catch(err) {
+    pendingRows.unshift(...rows);
+    setSyncStatus('err', 'Sync failed — will retry');
+    setTimeout(() => { if (pendingRows.length) flushToSheet(); }, 30000);
+  }
+}
+
+function persistToday() {
+  if (!potholes.length) return;
+  try {
+    const key = 'spothole_' + getDateKey();
+    const existing = JSON.parse(localStorage.getItem(key) || '[]');
+    const seen = new Set(existing.map(p => p.session_id + '|' + p.time));
+    localStorage.setItem(key, JSON.stringify([
+      ...existing,
+      ...potholes.filter(p => !seen.has(p.session_id + '|' + p.time))
+    ]));
+  } catch(e) {}
+}
+
+function triggerDetection(type) {
+  const c = lastGPS ? lastGPS.coords : null;
+  const entry = {
+    session_id:      SESSION_ID,
+    time:            new Date().toISOString(),
+    lat:             c ? c.latitude  : null,
+    lon:             c ? c.longitude : null,
+    speed_mph:       c && c.speed != null ? parseFloat(mpsToMph(c.speed)) : 0,
+    heading_deg:     c && c.heading != null ? Math.round(c.heading) : null,
+    heading_compass: c && c.heading != null ? degToCompass(c.heading) : '—',
+    x_accel_g:       parseFloat(lastX.toFixed(3)),
+    y_accel_g:       parseFloat(lastY.toFixed(3)),
+    z_accel_g:       parseFloat(lastZ.toFixed(3)),
+    type,
+    device: DEVICE
+  };
+  potholes.push(entry);
+  pendingRows.push(entry);
+  updateExportCount();
+  setSyncStatus('', 'Syncing in ~8s…');
+  scheduleFlush();
+}
 
 // ── Canvas ───────────────────────────────────────────────
 const canvas = document.getElementById('graph');
@@ -445,6 +589,7 @@ function triggerSpotOn(color) {
 function manualBump() {
   if (!isRecording) return;
   triggerSpotOn('#e74c3c'); // manual = Z/pothole color
+  triggerDetection('manual');
 }
 
 // ── GPS ───────────────────────────────────────────────────
@@ -503,6 +648,7 @@ function attachMotion() {
                         : yOver === maxOver ? '#27ae60'   // Y = green
                         :                    '#e74c3c';   // Z = red
         triggerSpotOn(axisColor);
+        triggerDetection('auto');
       }
     }
   };
@@ -615,6 +761,10 @@ function toggleRecording() {
       window.removeEventListener('devicemotion', motionHandler, true);
       motionHandler = null;
     }
+    // Flush any pending rows and persist to localStorage
+    if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+    persistToday();
+    if (pendingRows.length) flushToSheet();
   }
 }
 
