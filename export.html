@@ -209,7 +209,8 @@ function getAvailableDates() {
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
     if (k && k.startsWith('spothole_')) {
-      dates.push(k.replace('spothole_', ''));
+      const dateKey = k.replace('spothole_', '');
+      if (/^\d{8}$/.test(dateKey)) dates.push(dateKey); // only valid YYYYMMDD keys
     }
   }
   return dates.sort().reverse();
@@ -218,7 +219,9 @@ function getAvailableDates() {
 function formatDateLabel(key) {
   // key = YYYYMMDD
   const y = key.slice(0, 4), m = key.slice(4, 6), d = key.slice(6, 8);
-  return new Date(`${y}-${m}-${d}`).toLocaleDateString(undefined, {
+  const date = new Date(`${y}-${m}-${d}`);
+  if (isNaN(date.getTime())) return key; // fallback: show raw key rather than "Invalid Date"
+  return date.toLocaleDateString(undefined, {
     weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
   });
 }
