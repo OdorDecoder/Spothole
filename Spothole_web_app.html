@@ -390,10 +390,23 @@
 </div>
 
 <script>
-// ── Thresholds (declared first so nothing is undefined) ──
+// ── Thresholds ────────────────────────────────────────────
 let xThreshold = 0.8;
 let yThreshold = 1.3;
 let zThreshold = 0.6;
+
+// ── Real sensor state ─────────────────────────────────────
+let lastX = 0, lastY = 0, lastZ = 0;
+let lastGPS = null;
+let motionHandler = null;
+let gpsWatchId = null;
+let motionPermissionGranted = false;
+let detectionCooldown = false;
+
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+const headings = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+function degToCompass(d) { return headings[Math.round(d / 22.5) % 16]; }
+function mpsToMph(v) { return (v * 2.23694).toFixed(1); }
 
 // ── Canvas ───────────────────────────────────────────────
 const canvas = document.getElementById('graph');
@@ -415,22 +428,6 @@ const yBuf = new Float32Array(N);
 const zBuf = new Float32Array(N);
 
 let isRecording = false;
-
-const DIRS = ['N','NE','E','SE','S','SW','W','NW'];
-let dirIdx = 2;
-
-// Each axis has its own independent state
-// X: lateral — slow drift + occasional turn spikes
-let xSmooth   = 0;
-let xTurn     = 0, xTurnFrames = 0;
-
-// Y: forward/back — sinusoidal speed changes + braking
-let yPhase    = 0;
-let yBrake    = 0, yBrakeFrames = 0;
-
-// Z: vertical pothole — low baseline + sharp impact spikes
-let zImpact   = 0, zImpactFrames = 0;
-let zCooldown = 0;
 
 // ── SpotOn overlay ───────────────────────────────────────
 const overlay  = document.getElementById('spotonOverlay');
@@ -454,83 +451,81 @@ function triggerSpotOn() {
 
 function manualBump() {
   if (!isRecording) return;
-  // Manual pothole: big Z spike, small X jostle, almost no Y
-  zImpact = (0.7 + Math.random() * 0.3) * zThreshold * 2.4;
-  zImpactFrames = 14;
-  zCooldown = 30;
-  xTurn = (Math.random() - 0.5) * xThreshold * 0.4;
-  xTurnFrames = 8;
   triggerSpotOn();
 }
 
-// ── Simulate sensor ──────────────────────────────────────
-function tick() {
+// ── GPS ───────────────────────────────────────────────────
+function startGPS() {
+  if (!navigator.geolocation) return;
+  gpsWatchId = navigator.geolocation.watchPosition(pos => {
+    lastGPS = pos;
+    const c = pos.coords;
+    if (c.speed != null && c.speed >= 0)
+      document.getElementById('speedVal').textContent = mpsToMph(c.speed);
+    if (c.heading != null && !isNaN(c.heading))
+      document.getElementById('dirVal').textContent = degToCompass(c.heading);
+  }, () => {}, { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 });
+}
 
-  // ── X: lateral ───────────────────────────────────────
-  // Slow random drift (road camber / gentle steering)
-  xSmooth += (Math.random() - 0.5) * xThreshold * 0.04;
-  xSmooth *= 0.96; // decay back toward zero
-  let x = xSmooth + (Math.random() - 0.5) * xThreshold * 0.05;
+function stopGPS() {
+  if (gpsWatchId != null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
+}
 
-  // Occasional turn spike (independent of Z)
-  if (xTurnFrames > 0) {
-    x += xTurn * (xTurnFrames / 10);
-    xTurnFrames--;
-  } else if (Math.random() < 0.008) {
-    xTurn = (Math.random() - 0.5) * xThreshold * 1.8;
-    xTurnFrames = 10;
+// ── DeviceMotion ──────────────────────────────────────────
+function requestMotion() {
+  if (typeof DeviceMotionEvent === 'undefined') { startDisplayTimer(); return; }
+  if (motionPermissionGranted) { attachMotion(); return; }
+  if (typeof DeviceMotionEvent.requestPermission === 'function') {
+    DeviceMotionEvent.requestPermission()
+      .then(s => { if (s === 'granted') { motionPermissionGranted = true; attachMotion(); } })
+      .catch(() => {});
+  } else {
+    motionPermissionGranted = true;
+    attachMotion();
   }
+}
 
-  // ── Y: forward/back acceleration ─────────────────────
-  // Smooth sine wave simulating speed changes
-  yPhase += 0.03 + Math.random() * 0.01;
-  let y = Math.sin(yPhase) * yThreshold * 0.25
-        + Math.sin(yPhase * 2.3) * yThreshold * 0.10
-        + (Math.random() - 0.5) * yThreshold * 0.06;
+function attachMotion() {
+  if (motionHandler) return;
+  motionHandler = e => {
+    // Prefer e.acceleration (no gravity) if available, else use accelerationIncludingGravity
+    const ag = (e.acceleration && e.acceleration.x != null)
+               ? e.acceleration : e.accelerationIncludingGravity;
+    if (!ag) return;
+    const toG = v => v != null ? Math.abs(v) / 9.81 : 0;
+    lastX = toG(ag.x);
+    lastY = toG(ag.y);
+    lastZ = toG(ag.z);
+    // Threshold detection at full sensor rate
+    if (isRecording && !detectionCooldown) {
+      if (lastX > xThreshold || lastY > yThreshold || lastZ > zThreshold) {
+        detectionCooldown = true;
+        setTimeout(() => { detectionCooldown = false; }, 2000);
+        triggerSpotOn();
+      }
+    }
+  };
+  window.addEventListener('devicemotion', motionHandler, true);
+  startDisplayTimer();
+}
 
-  // Occasional braking event
-  if (yBrakeFrames > 0) {
-    y += yBrake * (yBrakeFrames / 15);
-    yBrakeFrames--;
-  } else if (Math.random() < 0.005) {
-    yBrake = -(0.5 + Math.random() * 0.5) * yThreshold * 1.4; // braking = negative Y
-    yBrakeFrames = 15;
-  }
+// ── Display timer: push real readings into graph buffer ───
+let displayTimer = null;
+function startDisplayTimer() {
+  if (displayTimer) return;
+  displayTimer = setInterval(() => {
+    if (!isRecording) return;
+    xBuf.copyWithin(0, 1); xBuf[N-1] = lastX;
+    yBuf.copyWithin(0, 1); yBuf[N-1] = lastY;
+    zBuf.copyWithin(0, 1); zBuf[N-1] = lastZ;
+    document.getElementById('xVal').textContent = lastX.toFixed(1);
+    document.getElementById('yVal').textContent = lastY.toFixed(1);
+    document.getElementById('zVal').textContent = lastZ.toFixed(1);
+  }, 250); // 4 Hz
+}
 
-  // ── Z: vertical / pothole ────────────────────────────
-  // Very low baseline road texture
-  let z = Math.random() * zThreshold * 0.12;
-
-  if (zImpactFrames > 0) {
-    // Sharp spike that decays quickly
-    z += zImpact * (zImpactFrames / 14);
-    zImpactFrames--;
-  } else if (zCooldown > 0) {
-    zCooldown--;
-  } else if (Math.random() < 0.012) {
-    // Auto pothole — only Z spikes hard; X gets a small jostle
-    zImpact = (0.6 + Math.random() * 0.4) * zThreshold * 2.2;
-    zImpactFrames = 14;
-    zCooldown = 45;
-    xTurn = (Math.random() - 0.5) * xThreshold * 0.35;
-    xTurnFrames = 6;
-    triggerSpotOn();
-  }
-
-  xBuf.copyWithin(0, 1); xBuf[N-1] = x;
-  yBuf.copyWithin(0, 1); yBuf[N-1] = y;
-  zBuf.copyWithin(0, 1); zBuf[N-1] = z;
-
-  document.getElementById('xVal').textContent = Math.abs(x).toFixed(1);
-  document.getElementById('yVal').textContent = Math.abs(y).toFixed(1);
-  document.getElementById('zVal').textContent = Math.abs(z).toFixed(1);
-
-  const spd = (Math.random() * 3 + 0.5).toFixed(1);
-  document.getElementById('speedVal').textContent = spd;
-  if (Math.random() < 0.008) {
-    dirIdx = (dirIdx + (Math.random() < 0.5 ? 1 : -1) + 8) % 8;
-    document.getElementById('dirVal').textContent = DIRS[dirIdx];
-  }
+function stopDisplayTimer() {
+  if (displayTimer) { clearInterval(displayTimer); displayTimer = null; }
 }
 
 // ── Draw graph ───────────────────────────────────────────
@@ -584,12 +579,9 @@ function drawGraph() {
   });
 }
 
-// ── Animation loop ───────────────────────────────────────
-let frame = 0;
+// ── Animation loop (draw only) ───────────────────────────
 function loop() {
   requestAnimationFrame(loop);
-  frame++;
-  if (isRecording && frame % 3 === 0) tick();
   drawGraph();
 }
 loop();
@@ -603,11 +595,11 @@ function toggleRecording() {
     document.getElementById('startIcon').textContent  = '⏹';
     document.getElementById('startLabel').textContent = 'Stop';
     document.getElementById('statusText').textContent = 'Recording';
-    // clear stale data
     xBuf.fill(0); yBuf.fill(0); zBuf.fill(0);
-    xSmooth = 0; xTurn = 0; xTurnFrames = 0;
-    yPhase = 0; yBrake = 0; yBrakeFrames = 0;
-    zImpact = 0; zImpactFrames = 0; zCooldown = 0;
+    lastX = 0; lastY = 0; lastZ = 0;
+    detectionCooldown = false;
+    startGPS();
+    requestMotion();
   } else {
     btn.style.background = '#2ecc71';
     document.getElementById('startIcon').textContent  = '▶';
@@ -616,6 +608,12 @@ function toggleRecording() {
     document.getElementById('xVal').textContent = '0.0';
     document.getElementById('yVal').textContent = '0.0';
     document.getElementById('zVal').textContent = '0.0';
+    stopGPS();
+    stopDisplayTimer();
+    if (motionHandler) {
+      window.removeEventListener('devicemotion', motionHandler, true);
+      motionHandler = null;
+    }
   }
 }
 
