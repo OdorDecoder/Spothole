@@ -415,12 +415,22 @@ const yBuf = new Float32Array(N);
 const zBuf = new Float32Array(N);
 
 let isRecording = false;
-let cooldown    = 0;
-let bumpFrames  = 0;
-let bumpX = 0, bumpY = 0, bumpZ = 0;
 
 const DIRS = ['N','NE','E','SE','S','SW','W','NW'];
 let dirIdx = 2;
+
+// Each axis has its own independent state
+// X: lateral — slow drift + occasional turn spikes
+let xSmooth   = 0;
+let xTurn     = 0, xTurnFrames = 0;
+
+// Y: forward/back — sinusoidal speed changes + braking
+let yPhase    = 0;
+let yBrake    = 0, yBrakeFrames = 0;
+
+// Z: vertical pothole — low baseline + sharp impact spikes
+let zImpact   = 0, zImpactFrames = 0;
+let zCooldown = 0;
 
 // ── SpotOn overlay ───────────────────────────────────────
 const overlay  = document.getElementById('spotonOverlay');
@@ -444,38 +454,67 @@ function triggerSpotOn() {
 
 function manualBump() {
   if (!isRecording) return;
+  // Manual pothole: big Z spike, small X jostle, almost no Y
+  zImpact = (0.7 + Math.random() * 0.3) * zThreshold * 2.4;
+  zImpactFrames = 14;
+  zCooldown = 30;
+  xTurn = (Math.random() - 0.5) * xThreshold * 0.4;
+  xTurnFrames = 8;
   triggerSpotOn();
-  bumpX = (Math.random() - 0.5) * xThreshold * 2.5;
-  bumpY = (Math.random() - 0.5) * yThreshold * 2.5;
-  bumpZ = (Math.random() * 0.7 + 0.3) * zThreshold * 2.5;
-  bumpFrames = 12;
 }
 
 // ── Simulate sensor ──────────────────────────────────────
 function tick() {
-  // baseline road noise: ~10% of each threshold
-  let x = (Math.random() - 0.5) * xThreshold * 0.20;
-  let y = (Math.random() - 0.5) * yThreshold * 0.20;
-  let z = Math.random()          * zThreshold * 0.15;
 
-  // occasional auto-bump
-  if (cooldown > 0) {
-    cooldown--;
-  } else if (Math.random() < 0.015) {
-    bumpX = (Math.random() - 0.5) * xThreshold * 2.2;
-    bumpY = (Math.random() - 0.5) * yThreshold * 2.2;
-    bumpZ = (Math.random() * 0.7 + 0.3) * zThreshold * 2.2;
-    bumpFrames = 12;
-    cooldown   = 50;
-    triggerSpotOn();
+  // ── X: lateral ───────────────────────────────────────
+  // Slow random drift (road camber / gentle steering)
+  xSmooth += (Math.random() - 0.5) * xThreshold * 0.04;
+  xSmooth *= 0.96; // decay back toward zero
+  let x = xSmooth + (Math.random() - 0.5) * xThreshold * 0.05;
+
+  // Occasional turn spike (independent of Z)
+  if (xTurnFrames > 0) {
+    x += xTurn * (xTurnFrames / 10);
+    xTurnFrames--;
+  } else if (Math.random() < 0.008) {
+    xTurn = (Math.random() - 0.5) * xThreshold * 1.8;
+    xTurnFrames = 10;
   }
 
-  if (bumpFrames > 0) {
-    const env = bumpFrames / 12;
-    x += bumpX * env;
-    y += bumpY * env;
-    z += bumpZ * env;
-    bumpFrames--;
+  // ── Y: forward/back acceleration ─────────────────────
+  // Smooth sine wave simulating speed changes
+  yPhase += 0.03 + Math.random() * 0.01;
+  let y = Math.sin(yPhase) * yThreshold * 0.25
+        + Math.sin(yPhase * 2.3) * yThreshold * 0.10
+        + (Math.random() - 0.5) * yThreshold * 0.06;
+
+  // Occasional braking event
+  if (yBrakeFrames > 0) {
+    y += yBrake * (yBrakeFrames / 15);
+    yBrakeFrames--;
+  } else if (Math.random() < 0.005) {
+    yBrake = -(0.5 + Math.random() * 0.5) * yThreshold * 1.4; // braking = negative Y
+    yBrakeFrames = 15;
+  }
+
+  // ── Z: vertical / pothole ────────────────────────────
+  // Very low baseline road texture
+  let z = Math.random() * zThreshold * 0.12;
+
+  if (zImpactFrames > 0) {
+    // Sharp spike that decays quickly
+    z += zImpact * (zImpactFrames / 14);
+    zImpactFrames--;
+  } else if (zCooldown > 0) {
+    zCooldown--;
+  } else if (Math.random() < 0.012) {
+    // Auto pothole — only Z spikes hard; X gets a small jostle
+    zImpact = (0.6 + Math.random() * 0.4) * zThreshold * 2.2;
+    zImpactFrames = 14;
+    zCooldown = 45;
+    xTurn = (Math.random() - 0.5) * xThreshold * 0.35;
+    xTurnFrames = 6;
+    triggerSpotOn();
   }
 
   xBuf.copyWithin(0, 1); xBuf[N-1] = x;
@@ -488,7 +527,7 @@ function tick() {
 
   const spd = (Math.random() * 3 + 0.5).toFixed(1);
   document.getElementById('speedVal').textContent = spd;
-  if (Math.random() < 0.01) {
+  if (Math.random() < 0.008) {
     dirIdx = (dirIdx + (Math.random() < 0.5 ? 1 : -1) + 8) % 8;
     document.getElementById('dirVal').textContent = DIRS[dirIdx];
   }
@@ -566,7 +605,9 @@ function toggleRecording() {
     document.getElementById('statusText').textContent = 'Recording';
     // clear stale data
     xBuf.fill(0); yBuf.fill(0); zBuf.fill(0);
-    cooldown = 0; bumpFrames = 0;
+    xSmooth = 0; xTurn = 0; xTurnFrames = 0;
+    yPhase = 0; yBrake = 0; yBrakeFrames = 0;
+    zImpact = 0; zImpactFrames = 0; zCooldown = 0;
   } else {
     btn.style.background = '#2ecc71';
     document.getElementById('startIcon').textContent  = '▶';
