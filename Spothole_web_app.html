@@ -309,7 +309,7 @@
       </div>
       <div class="xyz-box">
         <span class="xyz-number" id="yVal">0.0</span>
-        <span class="xyz-symbol y">&#x2195;</span><!-- ↕ -->
+        <span class="xyz-symbol y">&#x2195;&#xFE0E;</span><!-- ↕ text, not emoji -->
       </div>
       <div class="xyz-box">
         <span class="xyz-number" id="zVal">0.0</span>
@@ -509,13 +509,12 @@ function drawGraph() {
   ctx.fillStyle = '#efefef';
   ctx.fillRect(0, 0, w, h);
 
-  // dashed centre line
+  // dashed top reference line
   ctx.save();
   ctx.strokeStyle = '#d0d0d0';
   ctx.lineWidth   = 1;
   ctx.setLineDash([5, 5]);
-  const mid = h * 0.38;
-  ctx.beginPath(); ctx.moveTo(0, mid); ctx.lineTo(w, mid); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, h * 0.15); ctx.lineTo(w, h * 0.15); ctx.stroke();
   ctx.restore();
 
   // draw each axis
@@ -531,7 +530,7 @@ function drawGraph() {
     ctx.beginPath();
     for (let j = 0; j < N; j++) {
       const px = (j / (N - 1)) * w;
-      const py = h / 2 - (buf[j] / 3.5) * (h / 2) * 0.9;
+      const py = h - 3 - (Math.abs(buf[j]) / 3.5) * (h - 6) * 0.92;
       j === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
     }
     ctx.stroke();
