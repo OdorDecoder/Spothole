@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Spothole</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -302,6 +303,84 @@
     text-decoration: none;
   }
   .btn-export-page:active { opacity: 0.7; }
+
+  /* ── Run map overlay ── */
+  .map-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+  }
+  .map-overlay.show { display: flex; }
+  .map-panel {
+    background: white;
+    border-radius: 18px;
+    width: 100%;
+    max-width: 420px;
+    overflow: hidden;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.35);
+    display: flex;
+    flex-direction: column;
+  }
+  .map-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px 8px;
+  }
+  .map-title { font-size: 16px; font-weight: 700; color: #111; }
+  .map-close {
+    border: none;
+    background: #eee;
+    border-radius: 50%;
+    width: 30px; height: 30px;
+    font-size: 15px;
+    cursor: pointer;
+    color: #555;
+  }
+  .map-filters {
+    display: flex;
+    gap: 6px;
+    padding: 0 14px 10px;
+  }
+  .map-chip {
+    border: none;
+    background: #efefef;
+    color: #666;
+    border-radius: 14px;
+    padding: 6px 12px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .map-chip.active { background: #ff6500; color: white; }
+  #runMap { width: 100%; height: 58vh; }
+  .map-foot {
+    padding: 8px 14px 12px;
+    font-size: 11px;
+    color: #999;
+    text-align: center;
+  }
+  .btn-map-page {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    padding: 16px;
+    background: white;
+    border: none;
+    border-radius: 16px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #444;
+    cursor: pointer;
+    text-align: center;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  }
+  .btn-map-page:active { opacity: 0.7; }
 </style>
 </head>
 <body>
@@ -414,7 +493,29 @@
   <!-- ── Export link ── -->
   <a class="btn-export-page" href="export.html">&#8679; Share &amp; Export <span id="exportCount"></span></a>
 
+  <!-- ── Run map button ── -->
+  <button class="btn-map-page" onclick="openRunMap()">&#x1F5FA;&#xFE0F; View Run Map</button>
+
 </div>
+
+<!-- ── Run map overlay ── -->
+<div class="map-overlay" id="mapOverlay">
+  <div class="map-panel">
+    <div class="map-head">
+      <span class="map-title" id="mapTitle">Run Map</span>
+      <button class="map-close" onclick="closeRunMap()">&#10005;</button>
+    </div>
+    <div class="map-filters" id="mapFilters" style="display:none">
+      <button class="map-chip active" data-mode="severity" onclick="setMapFilter('severity')">Severity</button>
+      <button class="map-chip" data-mode="recent" onclick="setMapFilter('recent')">Most recent</button>
+      <button class="map-chip" data-mode="spread" onclick="setMapFilter('spread')">Spread</button>
+    </div>
+    <div id="runMap"></div>
+    <div class="map-foot" id="mapFoot"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 
 <script>
 // ── Config ────────────────────────────────────────────────
@@ -890,7 +991,154 @@ function toggleRecording() {
     if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
     persistToday();
     if (pendingRows.length) flushToSheet();
+    // End-of-run summary map
+    openRunMap(true);
   }
+}
+
+// ── Run map: pins, dedup, filtering ──────────────────────
+const MAX_PINS    = 10;   // above this, filtering kicks in
+const DEDUP_M     = 25;   // metres   — location collision radius
+const DEDUP_MS    = 3000; // millis   — time collision window
+let runMap = null, runMarkers = null, mapFilterMode = 'severity';
+
+function haversineM(a, b) {
+  const R = 6371000, toR = d => d * Math.PI / 180;
+  const dLat = toR(b.lat - a.lat), dLon = toR(b.lon - a.lon);
+  const s = Math.sin(dLat/2)**2 +
+            Math.cos(toR(a.lat)) * Math.cos(toR(b.lat)) * Math.sin(dLon/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+function intensityOf(p) { return Math.max(p.z_accel_g, p.y_accel_g, p.x_accel_g); }
+
+// true if a beats b: intensity first, then z > y > x
+function beats(a, b) {
+  const ia = intensityOf(a), ib = intensityOf(b);
+  if (ia !== ib) return ia > ib;
+  if (a.z_accel_g !== b.z_accel_g) return a.z_accel_g > b.z_accel_g;
+  if (a.y_accel_g !== b.y_accel_g) return a.y_accel_g > b.y_accel_g;
+  return a.x_accel_g > b.x_accel_g;
+}
+
+// Merge events that collide in time OR location; winner picked by beats()
+function dedupEvents(events) {
+  const sorted = [...events].sort((p, q) => new Date(p.time) - new Date(q.time));
+  const reps = [];
+  for (const e of sorted) {
+    let merged = false;
+    for (let i = 0; i < reps.length; i++) {
+      const r = reps[i];
+      const dt = Math.abs(new Date(e.time) - new Date(r.time));
+      const dm = haversineM(e, r);
+      if (dt <= DEDUP_MS || dm <= DEDUP_M) {
+        if (beats(e, r)) reps[i] = e;   // collision → keep the stronger hit
+        merged = true;
+        break;
+      }
+    }
+    if (!merged) reps.push(e);
+  }
+  return reps;
+}
+
+// Greedy farthest-point selection for spatial coverage
+function spreadSelect(events, n) {
+  if (events.length <= n) return events;
+  const pool = [...events].sort((a, b) => beats(a, b) ? -1 : 1);
+  const sel = [pool.shift()];                 // seed with the most severe
+  while (sel.length < n && pool.length) {
+    let best = 0, bestD = -1;
+    pool.forEach((p, i) => {
+      const d = Math.min(...sel.map(s => haversineM(p, s)));
+      if (d > bestD) { bestD = d; best = i; }
+    });
+    sel.push(pool.splice(best, 1)[0]);
+  }
+  return sel;
+}
+
+function filterPins(events) {
+  if (events.length <= MAX_PINS) return events;
+  if (mapFilterMode === 'recent')
+    return [...events].sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, MAX_PINS);
+  if (mapFilterMode === 'spread')
+    return spreadSelect(events, MAX_PINS);
+  // default: severity
+  return [...events].sort((a, b) => beats(a, b) ? -1 : 1).slice(0, MAX_PINS);
+}
+
+function getRunEvents() {
+  // this session's bumps with coordinates; fall back to everything logged today
+  let evts = potholes.filter(p => p.lat != null && ['auto','manual'].includes(p.type));
+  if (!evts.length) {
+    try {
+      const stored = JSON.parse(localStorage.getItem('spothole_' + getDateKey()) || '[]');
+      evts = stored.filter(p => p.lat != null && ['auto','manual'].includes(p.type));
+    } catch(e) {}
+  }
+  return evts;
+}
+
+function dominantAxisColor(p) {
+  const m = intensityOf(p);
+  if (p.z_accel_g === m) return '#e74c3c';
+  if (p.y_accel_g === m) return '#27ae60';
+  return '#1a6fd4';
+}
+
+function renderRunMap() {
+  const all   = dedupEvents(getRunEvents());
+  const pins  = filterPins(all);
+  document.getElementById('mapFilters').style.display = all.length > MAX_PINS ? 'flex' : 'none';
+  document.getElementById('mapTitle').textContent = `Run Map · ${pins.length} pothole${pins.length === 1 ? '' : 's'}`;
+  document.getElementById('mapFoot').textContent  = all.length > pins.length
+    ? `${all.length} unique potholes after dedup — showing ${pins.length} (${mapFilterMode})`
+    : `${all.length} unique pothole${all.length === 1 ? '' : 's'} after dedup`;
+
+  if (!runMap) {
+    runMap = L.map('runMap', { zoomControl: true });
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '&copy; OpenStreetMap'
+    }).addTo(runMap);
+    runMarkers = L.layerGroup().addTo(runMap);
+  }
+  runMarkers.clearLayers();
+  if (!pins.length) { runMap.setView([39.5, -98.35], 4); return; }
+
+  pins.forEach(p => {
+    const inten = intensityOf(p);
+    L.circleMarker([p.lat, p.lon], {
+      radius: Math.min(6 + inten * 5, 16),
+      color: '#ffffff', weight: 2,
+      fillColor: dominantAxisColor(p), fillOpacity: 0.9
+    }).bindPopup(
+      `<b>${new Date(p.time).toLocaleTimeString()}</b> · ${p.type}<br>` +
+      `Z ${p.z_accel_g}g · Y ${p.y_accel_g}g · X ${p.x_accel_g}g<br>` +
+      `${p.speed_mph} mph ${p.heading_compass || ''}`
+    ).addTo(runMarkers);
+  });
+  const bounds = L.latLngBounds(pins.map(p => [p.lat, p.lon]));
+  runMap.fitBounds(bounds.pad(0.25), { maxZoom: 17 });
+}
+
+function openRunMap(auto) {
+  if (typeof L === 'undefined') return;            // Leaflet not loaded (offline)
+  if (auto && !getRunEvents().length) return;      // nothing to show, stay quiet
+  document.getElementById('mapOverlay').classList.add('show');
+  renderRunMap();
+  setTimeout(() => runMap && runMap.invalidateSize(), 120);
+}
+
+function closeRunMap() {
+  document.getElementById('mapOverlay').classList.remove('show');
+}
+
+function setMapFilter(mode) {
+  mapFilterMode = mode;
+  document.querySelectorAll('.map-chip').forEach(c =>
+    c.classList.toggle('active', c.dataset.mode === mode));
+  renderRunMap();
 }
 
 // ── Sliders ──────────────────────────────────────────────
