@@ -337,6 +337,13 @@ ${placemarks}
   download(`spothole_${dateTag()}.kml`, kml, 'application/vnd.google-earth.kml+xml');
 }
 
+// ── Auto-clean malformed spothole_* keys ─────────────────
+for (let i = localStorage.length - 1; i >= 0; i--) {
+  const k = localStorage.key(i);
+  if (k && k.startsWith('spothole_') && !/^\d{8}$/.test(k.replace('spothole_', '')))
+    localStorage.removeItem(k);
+}
+
 // ── Init ──────────────────────────────────────────────────
 populatePicker();
 loadDate();

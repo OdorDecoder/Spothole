@@ -917,6 +917,13 @@ window.addEventListener('load', () => {
     onSlider(el, lbl, color, key);
   });
   resizeCanvas();
+
+  // Auto-clean any malformed spothole_* keys (backwards to avoid index shift on removal)
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith('spothole_') && !/^\d{8}$/.test(k.replace('spothole_', '')))
+      localStorage.removeItem(k);
+  }
 });
 </script>
 </body>
