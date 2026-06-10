@@ -1069,15 +1069,32 @@ function filterPins(events) {
 }
 
 function getRunEvents() {
-  // this session's bumps with coordinates; fall back to everything logged today
+  // 1) this session's bumps with coordinates
   let evts = potholes.filter(p => p.lat != null && ['auto','manual'].includes(p.type));
+  let label = 'this run';
+  // 2) fall back to the most recent stored day that has GPS-tagged bumps
   if (!evts.length) {
-    try {
-      const stored = JSON.parse(localStorage.getItem('spothole_' + getDateKey()) || '[]');
-      evts = stored.filter(p => p.lat != null && ['auto','manual'].includes(p.type));
-    } catch(e) {}
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && /^spothole_\d{8}$/.test(k)) keys.push(k);
+    }
+    keys.sort().reverse();
+    for (const k of keys) {
+      try {
+        const f = JSON.parse(localStorage.getItem(k) || '[]')
+          .filter(p => p.lat != null && ['auto','manual'].includes(p.type));
+        if (f.length) {
+          evts = f;
+          const d = k.slice(9);
+          label = d === getDateKey() ? 'today'
+                : `${d.slice(4,6)}/${d.slice(6,8)}/${d.slice(0,4)}`;
+          break;
+        }
+      } catch(e) {}
+    }
   }
-  return evts;
+  return { evts, label };
 }
 
 function dominantAxisColor(p) {
@@ -1088,13 +1105,16 @@ function dominantAxisColor(p) {
 }
 
 function renderRunMap() {
-  const all   = dedupEvents(getRunEvents());
+  const { evts, label } = getRunEvents();
+  const all   = dedupEvents(evts);
   const pins  = filterPins(all);
   document.getElementById('mapFilters').style.display = all.length > MAX_PINS ? 'flex' : 'none';
   document.getElementById('mapTitle').textContent = `Run Map · ${pins.length} pothole${pins.length === 1 ? '' : 's'}`;
-  document.getElementById('mapFoot').textContent  = all.length > pins.length
-    ? `${all.length} unique potholes after dedup — showing ${pins.length} (${mapFilterMode})`
-    : `${all.length} unique pothole${all.length === 1 ? '' : 's'} after dedup`;
+  document.getElementById('mapFoot').textContent  = !all.length
+    ? 'No GPS-tagged potholes yet — start a run, hit some bumps, then stop. (Bumps logged before GPS locks have no location.)'
+    : all.length > pins.length
+    ? `${all.length} unique potholes after dedup (${label}) — showing ${pins.length} (${mapFilterMode})`
+    : `${all.length} unique pothole${all.length === 1 ? '' : 's'} after dedup (${label})`;
 
   if (!runMap) {
     runMap = L.map('runMap', { zoomControl: true });
@@ -1124,7 +1144,7 @@ function renderRunMap() {
 
 function openRunMap(auto) {
   if (typeof L === 'undefined') return;            // Leaflet not loaded (offline)
-  if (auto && !getRunEvents().length) return;      // nothing to show, stay quiet
+  if (auto && !getRunEvents().evts.length) return; // nothing to show, stay quiet
   document.getElementById('mapOverlay').classList.add('show');
   renderRunMap();
   setTimeout(() => runMap && runMap.invalidateSize(), 120);
