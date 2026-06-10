@@ -784,16 +784,36 @@ function toggleHighRes() {
 }
 
 // ── GPS ───────────────────────────────────────────────────
+let gpsStatus = 'off'; // off | wait | ok | err
+
+function updateStatusLabel() {
+  const el = document.getElementById('statusText');
+  if (!isRecording) { el.textContent = 'Stopped'; return; }
+  const g = gpsStatus === 'ok'   ? 'GPS \u2713'
+          : gpsStatus === 'err'  ? 'GPS denied \u2014 check location permission'
+          :                        'GPS acquiring\u2026';
+  el.textContent = 'Recording \u00b7 ' + g;
+}
+
 function startGPS() {
-  if (!navigator.geolocation) return;
-  gpsWatchId = navigator.geolocation.watchPosition(pos => {
+  if (!navigator.geolocation) { gpsStatus = 'err'; updateStatusLabel(); return; }
+  gpsStatus = 'wait'; updateStatusLabel();
+  const onFix = pos => {
     lastGPS = pos;
+    if (gpsStatus !== 'ok') { gpsStatus = 'ok'; updateStatusLabel(); }
     const c = pos.coords;
     if (c.speed != null && c.speed >= 0)
       document.getElementById('speedVal').textContent = mpsToMph(c.speed);
     if (c.heading != null && !isNaN(c.heading))
       document.getElementById('dirVal').textContent = degToCompass(c.heading);
-  }, () => {}, { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 });
+  };
+  const onErr = e => {
+    if (!lastGPS) { gpsStatus = 'err'; updateStatusLabel(); }
+  };
+  // one-shot for a fast first fix (also forces the permission prompt right away)
+  navigator.geolocation.getCurrentPosition(onFix, onErr, { enableHighAccuracy: true, timeout: 15000 });
+  gpsWatchId = navigator.geolocation.watchPosition(onFix, onErr,
+    { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 });
 }
 
 function stopGPS() {
@@ -960,9 +980,9 @@ function toggleRecording() {
     btn.style.background = '#e74c3c';
     document.getElementById('startIcon').textContent  = '⏹';
     document.getElementById('startLabel').textContent = 'Stop';
-    document.getElementById('statusText').textContent = 'Recording';
     xBuf.fill(0); yBuf.fill(0); zBuf.fill(0);
     lastX = 0; lastY = 0; lastZ = 0;
+    updateStatusLabel();
     detectionCooldown = false;
     preBuf = []; postCapture = null;
     // Write session header immediately — creates the tab and confirms connectivity
@@ -974,7 +994,7 @@ function toggleRecording() {
     btn.style.background = '#2ecc71';
     document.getElementById('startIcon').textContent  = '▶';
     document.getElementById('startLabel').textContent = 'Start';
-    document.getElementById('statusText').textContent = 'Stopped';
+    gpsStatus = 'off'; updateStatusLabel();
     document.getElementById('xVal').textContent = '0.0';
     document.getElementById('yVal').textContent = '0.0';
     document.getElementById('zVal').textContent = '0.0';
@@ -1071,6 +1091,7 @@ function filterPins(events) {
 function getRunEvents() {
   // 1) this session's bumps with coordinates
   let evts = potholes.filter(p => p.lat != null && ['auto','manual'].includes(p.type));
+  let noLoc = potholes.filter(p => p.lat == null && ['auto','manual'].includes(p.type)).length;
   let label = 'this run';
   // 2) fall back to the most recent stored day that has GPS-tagged bumps
   if (!evts.length) {
@@ -1084,6 +1105,8 @@ function getRunEvents() {
       try {
         const f = JSON.parse(localStorage.getItem(k) || '[]')
           .filter(p => p.lat != null && ['auto','manual'].includes(p.type));
+        const all2 = JSON.parse(localStorage.getItem(k) || '[]');
+        noLoc = Math.max(noLoc, all2.filter(p => p.lat == null && ['auto','manual'].includes(p.type)).length);
         if (f.length) {
           evts = f;
           const d = k.slice(9);
@@ -1094,7 +1117,7 @@ function getRunEvents() {
       } catch(e) {}
     }
   }
-  return { evts, label };
+  return { evts, label, noLoc };
 }
 
 function dominantAxisColor(p) {
@@ -1105,13 +1128,15 @@ function dominantAxisColor(p) {
 }
 
 function renderRunMap() {
-  const { evts, label } = getRunEvents();
+  const { evts, label, noLoc } = getRunEvents();
   const all   = dedupEvents(evts);
   const pins  = filterPins(all);
   document.getElementById('mapFilters').style.display = all.length > MAX_PINS ? 'flex' : 'none';
   document.getElementById('mapTitle').textContent = `Run Map · ${pins.length} pothole${pins.length === 1 ? '' : 's'}`;
   document.getElementById('mapFoot').textContent  = !all.length
-    ? 'No GPS-tagged potholes yet — start a run, hit some bumps, then stop. (Bumps logged before GPS locks have no location.)'
+    ? (noLoc > 0
+        ? `${noLoc} bump${noLoc === 1 ? '' : 's'} logged WITHOUT a GPS fix — allow location for this site and wait for “GPS ✓” before logging.`
+        : 'No potholes logged yet — start a run, hit some bumps, then stop.')
     : all.length > pins.length
     ? `${all.length} unique potholes after dedup (${label}) — showing ${pins.length} (${mapFilterMode})`
     : `${all.length} unique pothole${all.length === 1 ? '' : 's'} after dedup (${label})`;
