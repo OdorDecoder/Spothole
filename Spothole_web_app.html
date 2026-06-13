@@ -405,6 +405,17 @@
       </div>
     </div>
 
+    <!-- Barometer row (barometer-test branch) -->
+    <div class="row-speed" id="baroRow" style="display:none">
+      <div class="metric-box">
+        <span class="metric-primary" id="baroVal">--</span><span class="metric-unit"> hPa</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-primary" id="baroDeltaVal">--</span><span class="metric-unit"> Δ hPa</span>
+      </div>
+    </div>
+    <div id="baroStatus" style="font-size:12px;color:#888;text-align:center;margin-bottom:6px;display:none"></div>
+
     <!-- Row 2: X Y Z with arrow symbols -->
     <div class="row-xyz">
       <div class="xyz-box">
@@ -518,35 +529,73 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 
 <script>
+// =============================================================================
+// Spothole — Main App Script
+// =============================================================================
+// Detects road bumps using the DeviceMotion API (accelerometer) and tags each
+// event with GPS coordinates via the Geolocation API. All data is saved to
+// localStorage and optionally synced to Google Sheets via an Apps Script web app.
+//
+// Key flows:
+//   Start  → requestMotion() + startGPS()
+//   Motion → attachMotion() event handler → threshold check → triggerDetection()
+//   Stop   → persistToday() + flushToSheet() + openRunMap()
+// =============================================================================
+
 // ── Config ────────────────────────────────────────────────
+// Replace SCRIPT_URL with your own Google Apps Script deployment URL.
+// SECRET must match the SECRET constant in SpotHole_AppScript.js.
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw-SPX3KVc-UqPVS5IJx_GSkGOYcSt3GqY3xMOb45qVWKQS5NYSZHNj46P5ahjuSZhAuw/exec';
 const SECRET     = 'spotholekey';
 
 // ── Thresholds ────────────────────────────────────────────
-let xThreshold = 1.0;
-let yThreshold = 1.0;
-let zThreshold = 1.0;
+// Per-axis g-force values that trigger bump detection. Adjustable via sliders.
+let xThreshold = 1.0;  // lateral (left/right)
+let yThreshold = 1.0;  // acceleration (front/back)
+let zThreshold = 1.0;  // vertical (up/down — potholes)
 
 // ── Real sensor state ─────────────────────────────────────
+// Last g-force readings from DeviceMotion, updated at ~60 Hz while recording.
 let lastX = 0, lastY = 0, lastZ = 0;
-let lastGPS = null;
-let motionHandler = null;
-let gpsWatchId = null;
+let lastGPS = null;               // most recent GeolocationPosition object
+let motionHandler = null;         // reference to the active devicemotion listener
+let gpsWatchId = null;            // ID returned by watchPosition, used to cancel
 let motionPermissionGranted = false;
-let detectionCooldown = false;
+let detectionCooldown = false;    // true for 2s after a detection to prevent double-counting
+
+// ── Barometer state (barometer-test branch) ───────────────
+let baroSensor = null;            // AbsolutePressureSensor instance
+let lastBaroPressure = null;      // hPa from last reading
+let baroBaseline = null;          // first reading used to compute Δ
+let baroSupported = false;
 
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+/** Converts a compass bearing (0-360 degrees) to the nearest cardinal/intercardinal label. */
 const headings = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
 function degToCompass(d) { return headings[Math.round(d / 22.5) % 16]; }
+
+/** Converts metres-per-second to miles-per-hour, returned as a string with one decimal. */
 function mpsToMph(v) { return (v * 2.23694).toFixed(1); }
 
 // ── Session + device ──────────────────────────────────────
+
+/**
+ * Generates a unique session ID based on the current timestamp.
+ * Format: sess_YYYYMMDD_HHMMSS
+ * @returns {string}
+ */
 function makeSessionId() {
   const d = new Date(), p = n => String(n).padStart(2,'0');
   return `sess_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 const SESSION_ID = makeSessionId();
 
+/**
+ * Detects the device type and browser from the user-agent string.
+ * Used to tag each logged row so you can filter by device in the sheet.
+ * @returns {string} e.g. "iPhone / Safari"
+ */
 function getDeviceLabel() {
   const ua = navigator.userAgent;
   const dev = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android' : 'Unknown';
@@ -556,38 +605,54 @@ function getDeviceLabel() {
 const DEVICE = getDeviceLabel();
 
 // ── Pothole log + sync ────────────────────────────────────
-let potholes    = [];
-let pendingRows = [];
-let flushTimer  = null;
-let totalSynced = 0;
+let potholes    = [];    // all events logged this session (survives stop -> sync)
+let pendingRows = [];    // rows queued for the next sheet flush
+let flushTimer  = null;  // debounce timer handle for scheduleFlush
+let totalSynced = 0;     // cumulative rows confirmed sent this session
 
+/** Returns today's date as a compact YYYYMMDD string used in localStorage keys and sheet tab names. */
 function getDateKey() {
   const d = new Date();
   return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
 }
 
+/**
+ * Updates the small sync-status line below the graph.
+ * @param {string} state - CSS modifier: '' | 'ok' | 'err'
+ * @param {string} msg   - Text to display
+ */
 function setSyncStatus(state, msg) {
   const el = document.getElementById('syncLine');
   el.className = 'sync-line' + (state ? ' ' + state : '');
   el.textContent = msg;
 }
 
+/** Refreshes the pothole count badge on the Export button. */
 function updateExportCount() {
   const el = document.getElementById('exportCount');
   if (el && potholes.length) el.textContent = `· ${potholes.length} logged`;
   else if (el) el.textContent = '';
 }
 
+/**
+ * Schedules a sheet flush 8 seconds from now (debounced).
+ * Multiple calls within 8 s result in only one flush.
+ */
 function scheduleFlush() {
   if (flushTimer) return;
   flushTimer = setTimeout(() => { flushTimer = null; flushToSheet(); }, 8000);
 }
 
-// Route rows to the correct sheet tab by type
+// Sheet tab name helpers -- one tab per data type per day.
 const SHEET_EVENTS    = () => getDateKey() + '_events';
 const SHEET_WAVEFORMS = () => getDateKey() + '_waveforms';
 const SHEET_HIGHRES   = () => getDateKey() + '_highres';
 
+/**
+ * Serialises a pothole event object to a flat array matching the sheet column order.
+ * @param {Object} p - Pothole event object
+ * @returns {Array}
+ */
 function rowToArray(p) {
   return [
     p.session_id, p.time, p.lat ?? '', p.lon ?? '',
@@ -596,6 +661,12 @@ function rowToArray(p) {
   ];
 }
 
+/**
+ * POSTs a batch of rows to a single sheet tab via the Apps Script web app.
+ * Uses no-cors mode -- the response is opaque, but network errors still throw.
+ * @param {string} sheetName - Target tab name (e.g. "20250610_events")
+ * @param {Array}  rows      - Array of event objects to send
+ */
 async function postRows(sheetName, rows) {
   if (!rows.length) return;
   // no-cors: response is opaque but network errors still throw
@@ -606,6 +677,11 @@ async function postRows(sheetName, rows) {
   });
 }
 
+/**
+ * GETs the current row count from the events tab as a live confirmation.
+ * Returns null on any error (network offline, CORS, etc.) -- callers treat null as "unknown".
+ * @returns {Promise<number|null>}
+ */
 async function fetchSheetCount() {
   try {
     const r = await fetch(`${SCRIPT_URL}?date=${getDateKey()}&type=events`);
@@ -617,6 +693,11 @@ async function fetchSheetCount() {
   }
 }
 
+/**
+ * Drains pendingRows and sends them to the appropriate sheet tabs in parallel.
+ * Rows are split by type: summary events, pre/post waveforms, and continuous high-res.
+ * On failure, rows are pushed back to the front of pendingRows and retried after 30 s.
+ */
 async function flushToSheet() {
   if (!pendingRows.length) return;
   const rows = pendingRows.splice(0);
@@ -644,6 +725,10 @@ async function flushToSheet() {
   }
 }
 
+/**
+ * Merges this session's events into the daily localStorage entry (keyed spothole_YYYYMMDD).
+ * Uses session_id + time as a composite key to avoid duplicates on repeated calls.
+ */
 function persistToday() {
   if (!potholes.length) return;
   try {
@@ -657,6 +742,18 @@ function persistToday() {
   } catch(e) {}
 }
 
+/**
+ * Constructs a single event row object, stamping it with the current GPS fix and sensor values.
+ * Optional overrides allow replaying pre-buffered waveform samples with their original timestamps.
+ *
+ * @param {string}  type           - Row type: 'auto' | 'manual' | 'session_start' | 'pre_bump' | 'post_bump' | 'continuous'
+ * @param {string}  bumpId         - Shared ID linking pre_bump, auto, and post_bump rows for one event
+ * @param {string}  [timeOverride] - ISO timestamp (used when replaying preBuf samples)
+ * @param {number}  [xOverride]    - X g-force override
+ * @param {number}  [yOverride]    - Y g-force override
+ * @param {number}  [zOverride]    - Z g-force override
+ * @returns {Object}
+ */
 function makeRow(type, bumpId, timeOverride, xOverride, yOverride, zOverride) {
   const c = lastGPS ? lastGPS.coords : null;
   return {
@@ -671,11 +768,20 @@ function makeRow(type, bumpId, timeOverride, xOverride, yOverride, zOverride) {
     y_accel_g:       parseFloat((yOverride != null ? yOverride : lastY).toFixed(3)),
     z_accel_g:       parseFloat((zOverride != null ? zOverride : lastZ).toFixed(3)),
     type,
-    device:  DEVICE,
-    bump_id: bumpId || ''
+    device:       DEVICE,
+    bump_id:      bumpId || '',
+    pressure_hPa: lastBaroPressure != null ? parseFloat(lastBaroPressure.toFixed(4)) : null,
+    pressure_delta_hPa: (lastBaroPressure != null && baroBaseline != null)
+      ? parseFloat((lastBaroPressure - baroBaseline).toFixed(4))
+      : null
   };
 }
 
+/**
+ * Records a bump event, adds it to potholes[] and pendingRows[], and schedules a flush.
+ * @param {string} type   - 'auto' or 'manual'
+ * @param {string} bumpId - Unique bump ID from the triggering detection
+ */
 function triggerDetection(type, bumpId) {
   const entry = makeRow(type, bumpId || '');
   potholes.push(entry);
@@ -689,6 +795,7 @@ function triggerDetection(type, bumpId) {
 const canvas = document.getElementById('graph');
 const ctx    = canvas.getContext('2d');
 
+/** Matches the canvas pixel dimensions to its CSS container width after layout. */
 function resizeCanvas() {
   const wrap = canvas.parentElement;
   canvas.width  = (wrap.offsetWidth || 358) - 16;
@@ -699,16 +806,18 @@ window.addEventListener('resize', resizeCanvas);
 setTimeout(resizeCanvas, 50); // fallback after first paint
 
 // ── Buffers ──────────────────────────────────────────────
+// Rolling graph display buffers -- oldest sample at index 0, newest at N-1.
 const N    = 80;   // ~5 seconds at 16 Hz
 const xBuf = new Float32Array(N);
 const yBuf = new Float32Array(N);
 const zBuf = new Float32Array(N);
 
 // ── Waveform capture buffers ──────────────────────────────
-const PRE_BUF_SIZE  = 30;  // ~500ms at 60 Hz — covers bump onset with >5× margin
-const POST_BUF_SIZE = 60;  // ~1000ms at 60 Hz — captures full suspension ring-down
-let preBuf     = [];       // rolling ring of {time,x,y,z} tuples
-let postCapture = null;    // {bumpId, remaining} when collecting post-trigger
+// These capture the raw motion signal around each detected bump for later analysis.
+const PRE_BUF_SIZE  = 30;  // ~500ms at 60 Hz -- covers bump onset with >5x margin
+const POST_BUF_SIZE = 60;  // ~1000ms at 60 Hz -- captures full suspension ring-down
+let preBuf     = [];       // rolling ring of {time,x,y,z} tuples; trimmed to PRE_BUF_SIZE
+let postCapture = null;    // {bumpId, remaining} while collecting post-trigger samples
 
 // ── HIGH RES burst logging ────────────────────────────────
 let highResActive            = false;
@@ -723,6 +832,12 @@ const overlay  = document.getElementById('spotonOverlay');
 let spotActive = false;
 let fadeTimer  = null;
 
+/**
+ * Flashes the full-screen "SpotOn!" bump-detected overlay in the given color, then fades it out.
+ * Color is chosen by the axis that triggered detection (blue=X, green=Y, red=Z, red=manual).
+ * Re-entrant -- ignores calls while an existing flash is still fading.
+ * @param {string} color - CSS color string
+ */
 function triggerSpotOn(color) {
   if (spotActive) return;
   spotActive = true;
@@ -738,6 +853,10 @@ function triggerSpotOn(color) {
   }, 150);
 }
 
+/**
+ * Handles a manual pothole tap. Only active while recording.
+ * Logs a 'manual' event without needing a g-force threshold to be crossed.
+ */
 function manualBump() {
   if (!isRecording) return;
   triggerSpotOn('#e74c3c'); // manual = Z/pothole color
@@ -745,6 +864,8 @@ function manualBump() {
 }
 
 // ── HIGH RES 10-second timed burst ───────────────────────
+
+/** Cancels HIGH RES mode, resets the button, and flushes any collected rows. */
 function stopHighRes() {
   highResActive = false;
   if (highResTimer)             { clearInterval(highResTimer);             highResTimer = null; }
@@ -754,6 +875,11 @@ function stopHighRes() {
   if (pendingRows.length) scheduleFlush();
 }
 
+/**
+ * Toggles a 10-second burst of continuous 10 Hz accelerometer logging.
+ * Each tick appends a 'continuous' row to pendingRows.
+ * Tapping the button again while active cancels early.
+ */
 function toggleHighRes() {
   if (!isRecording) return;
   if (highResActive) { stopHighRes(); return; } // tap again = cancel early
@@ -786,15 +912,21 @@ function toggleHighRes() {
 // ── GPS ───────────────────────────────────────────────────
 let gpsStatus = 'off'; // off | wait | ok | err
 
+/** Refreshes the status bar text based on recording and GPS state. */
 function updateStatusLabel() {
   const el = document.getElementById('statusText');
   if (!isRecording) { el.textContent = 'Stopped'; return; }
-  const g = gpsStatus === 'ok'   ? 'GPS \u2713'
-          : gpsStatus === 'err'  ? 'GPS denied \u2014 check location permission'
-          :                        'GPS acquiring\u2026';
-  el.textContent = 'Recording \u00b7 ' + g;
+  const g = gpsStatus === 'ok'   ? 'GPS ✓'
+          : gpsStatus === 'err'  ? 'GPS denied — check location permission'
+          :                        'GPS acquiring…';
+  el.textContent = 'Recording · ' + g;
 }
 
+/**
+ * Starts GPS tracking. Fires a one-shot getCurrentPosition first to force the
+ * permission prompt immediately, then uses watchPosition for continuous updates.
+ * Updates lastGPS, speed, and heading displays on each fix.
+ */
 function startGPS() {
   if (!navigator.geolocation) { gpsStatus = 'err'; updateStatusLabel(); return; }
   gpsStatus = 'wait'; updateStatusLabel();
@@ -816,11 +948,19 @@ function startGPS() {
     { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 });
 }
 
+/** Stops GPS tracking and clears the watch handle. */
 function stopGPS() {
   if (gpsWatchId != null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
 }
 
 // ── DeviceMotion ──────────────────────────────────────────
+
+/**
+ * Requests DeviceMotion permission (required on iOS 13+) and attaches the listener.
+ * On non-iOS browsers DeviceMotionEvent.requestPermission does not exist, so we skip
+ * straight to attachMotion(). Falls back to startDisplayTimer() if DeviceMotion is
+ * unavailable (e.g. desktop).
+ */
 function requestMotion() {
   if (typeof DeviceMotionEvent === 'undefined') { startDisplayTimer(); return; }
   if (motionPermissionGranted) { attachMotion(); return; }
@@ -834,6 +974,20 @@ function requestMotion() {
   }
 }
 
+/**
+ * Attaches the devicemotion event listener (idempotent -- safe to call multiple times).
+ *
+ * Axis mapping: The physical device axes are remapped to match the car's reference frame:
+ *   e.acceleration.x  -> lastX  (lateral -- left/right sway)
+ *   e.acceleration.z  -> lastY  (front/back -- braking/acceleration)
+ *   e.acceleration.y  -> lastZ  (vertical -- potholes/bumps)
+ *
+ * On each event while recording:
+ *   1. Pushes a sample onto the pre-trigger ring buffer.
+ *   2. Appends a post_bump row if a capture is in progress.
+ *   3. Checks thresholds; on exceedance, snapshots the pre-buffer,
+ *      starts post-capture, and calls triggerDetection().
+ */
 function attachMotion() {
   if (motionHandler) return;
   motionHandler = e => {
@@ -843,8 +997,8 @@ function attachMotion() {
     if (!ag) return;
     const toG = v => v != null ? Math.abs(v) / 9.81 : 0;
     lastX = toG(ag.x);
-    lastY = toG(ag.z);  // physical Z (front/back) → Y Acceleration slot
-    lastZ = toG(ag.y);  // physical Y (up/down)    → Z Pothole slot
+    lastY = toG(ag.z);  // physical Z (front/back) -> Y Acceleration slot
+    lastZ = toG(ag.y);  // physical Y (up/down)    -> Z Pothole slot
 
     if (isRecording) {
       // ── Maintain pre-trigger ring buffer (runs every event, ~60 Hz) ──
@@ -875,7 +1029,7 @@ function attachMotion() {
                           :                    '#e74c3c';
           triggerSpotOn(axisColor);
 
-          // Snapshot pre-buffer → queue as pre_bump rows
+          // Snapshot pre-buffer -> queue as pre_bump rows
           const bumpId = SESSION_ID + '_' + Date.now();
           const snap = preBuf.slice(); // copy before it mutates
           snap.forEach(s => {
@@ -897,6 +1051,12 @@ function attachMotion() {
 
 // ── Display timer: push real readings into graph buffer ───
 let displayTimer = null;
+
+/**
+ * Starts the ~16 Hz display timer that shifts new sensor values into the
+ * rolling graph buffers and updates the X/Y/Z number readouts.
+ * Idempotent -- safe to call if already running.
+ */
 function startDisplayTimer() {
   if (displayTimer) return;
   displayTimer = setInterval(() => {
@@ -910,11 +1070,19 @@ function startDisplayTimer() {
   }, 60); // ~16 Hz
 }
 
+/** Stops the display timer. */
 function stopDisplayTimer() {
   if (displayTimer) { clearInterval(displayTimer); displayTimer = null; }
 }
 
 // ── Draw graph ───────────────────────────────────────────
+
+/**
+ * Renders one frame of the scrolling X/Y/Z graph onto the canvas.
+ * Called every animation frame via requestAnimationFrame.
+ * Each axis is drawn normalised to its threshold so the dashed line at the
+ * top represents the detection boundary for all three channels simultaneously.
+ */
 function drawGraph() {
   const w = canvas.width, h = canvas.height;
   if (w < 2) return; // not yet laid out
@@ -973,6 +1141,87 @@ function loop() {
 loop();
 
 // ── Recording toggle ─────────────────────────────────────
+
+/**
+ * Starts or stops a recording session.
+ *
+ * On START: resets all buffers, writes a session_start row to confirm
+ *   connectivity, then starts GPS and motion listeners.
+ *
+ * On STOP: tears down sensors, persists events to localStorage, flushes
+ *   any remaining rows to the sheet, and opens the run map if there's data.
+ */
+// ── Barometer (barometer-test branch) ────────────────────────────────────────
+//
+// Uses the Generic Sensor API (AbsolutePressureSensor).
+// Supported: Chrome on Android. NOT supported: iOS Safari (no barometer API).
+// The UI row is hidden until support is confirmed so it degrades gracefully.
+//
+// Why barometer for potholes?
+//   A pothole causes the car body to dip ~5–20 cm. That's a pressure change of
+//   ~0.006–0.025 hPa — tiny, but measurable in calm conditions. This branch tests
+//   whether the signal is real and consistent enough to use as a secondary
+//   confirmation of accelerometer bumps.
+
+function startBarometer() {
+  const statusEl = document.getElementById('baroStatus');
+  const rowEl    = document.getElementById('baroRow');
+
+  if (typeof AbsolutePressureSensor === 'undefined') {
+    // Try RelativePressureSensor as fallback
+    if (typeof RelativePressureSensor === 'undefined') {
+      statusEl.textContent = '⚠️ Barometer not available in this browser';
+      statusEl.style.display = 'block';
+      return;
+    }
+  }
+
+  try {
+    const SensorClass = (typeof AbsolutePressureSensor !== 'undefined')
+      ? AbsolutePressureSensor
+      : RelativePressureSensor;
+
+    baroSensor = new SensorClass({ frequency: 5 }); // 5 Hz — pressure changes slowly
+
+    baroSensor.addEventListener('reading', () => {
+      const hPa = baroSensor.pressure; // value in hPa
+      if (baroBaseline === null) baroBaseline = hPa;
+      const delta = (hPa - baroBaseline).toFixed(4);
+      lastBaroPressure = hPa;
+
+      document.getElementById('baroVal').textContent      = hPa.toFixed(2);
+      document.getElementById('baroDeltaVal').textContent = (delta >= 0 ? '+' : '') + delta;
+    });
+
+    baroSensor.addEventListener('error', (e) => {
+      statusEl.textContent = '⚠️ Barometer error: ' + e.error.message;
+      statusEl.style.display = 'block';
+      stopBarometer();
+    });
+
+    baroSensor.start();
+    baroSupported = true;
+    rowEl.style.display    = 'flex';
+    statusEl.style.display = 'block';
+    statusEl.textContent   = '📊 Barometer active — watching for pressure dips at bumps';
+
+  } catch (e) {
+    statusEl.textContent = '⚠️ Barometer unavailable: ' + e.message;
+    statusEl.style.display = 'block';
+  }
+}
+
+function stopBarometer() {
+  if (baroSensor) {
+    baroSensor.stop();
+    baroSensor = null;
+  }
+  baroBaseline     = null;
+  lastBaroPressure = null;
+  document.getElementById('baroVal').textContent      = '--';
+  document.getElementById('baroDeltaVal').textContent = '--';
+}
+
 function toggleRecording() {
   isRecording = !isRecording;
   const btn = document.getElementById('startBtn');
@@ -985,11 +1234,12 @@ function toggleRecording() {
     updateStatusLabel();
     detectionCooldown = false;
     preBuf = []; postCapture = null;
-    // Write session header immediately — creates the tab and confirms connectivity
+    // Write session header immediately -- creates the tab and confirms connectivity
     pendingRows.push(makeRow('session_start', ''));
     flushToSheet();
     startGPS();
     requestMotion();
+    startBarometer();
   } else {
     btn.style.background = '#2ecc71';
     document.getElementById('startIcon').textContent  = '▶';
@@ -1001,6 +1251,7 @@ function toggleRecording() {
     stopGPS();
     stopDisplayTimer();
     stopHighRes();
+    stopBarometer();
     postCapture = null;
     preBuf = [];
     if (motionHandler) {
@@ -1017,11 +1268,18 @@ function toggleRecording() {
 }
 
 // ── Run map: pins, dedup, filtering ──────────────────────
-const MAX_PINS    = 10;   // above this, filtering kicks in
-const DEDUP_M     = 25;   // metres   — location collision radius
-const DEDUP_MS    = 3000; // millis   — time collision window
+const MAX_PINS    = 10;   // above this, filtering kicks in to keep the map readable
+const DEDUP_M     = 25;   // metres   -- location collision radius for deduplication
+const DEDUP_MS    = 3000; // millis   -- time collision window for deduplication
 let runMap = null, runMarkers = null, mapFilterMode = 'severity';
 
+/**
+ * Computes the great-circle distance between two {lat, lon} points in metres.
+ * Uses the Haversine formula.
+ * @param {{lat: number, lon: number}} a
+ * @param {{lat: number, lon: number}} b
+ * @returns {number} Distance in metres
+ */
 function haversineM(a, b) {
   const R = 6371000, toR = d => d * Math.PI / 180;
   const dLat = toR(b.lat - a.lat), dLon = toR(b.lon - a.lon);
@@ -1030,9 +1288,20 @@ function haversineM(a, b) {
   return 2 * R * Math.asin(Math.sqrt(s));
 }
 
+/**
+ * Returns the overall intensity of an event as the maximum g-force across all axes.
+ * @param {Object} p - Pothole event object
+ * @returns {number}
+ */
 function intensityOf(p) { return Math.max(p.z_accel_g, p.y_accel_g, p.x_accel_g); }
 
-// true if a beats b: intensity first, then z > y > x
+/**
+ * Returns true if event a is "stronger" than event b.
+ * Primary sort: overall intensity. Tiebreaker: z > y > x axis value.
+ * @param {Object} a
+ * @param {Object} b
+ * @returns {boolean}
+ */
 function beats(a, b) {
   const ia = intensityOf(a), ib = intensityOf(b);
   if (ia !== ib) return ia > ib;
@@ -1041,7 +1310,13 @@ function beats(a, b) {
   return a.x_accel_g > b.x_accel_g;
 }
 
-// Merge events that collide in time OR location; winner picked by beats()
+/**
+ * Deduplicates a list of bump events by merging those that are within
+ * DEDUP_MS milliseconds OR DEDUP_M metres of each other.
+ * When two events collide, the stronger one (per beats()) is kept.
+ * @param {Array} events
+ * @returns {Array} Deduplicated events
+ */
 function dedupEvents(events) {
   const sorted = [...events].sort((p, q) => new Date(p.time) - new Date(q.time));
   const reps = [];
@@ -1052,7 +1327,7 @@ function dedupEvents(events) {
       const dt = Math.abs(new Date(e.time) - new Date(r.time));
       const dm = haversineM(e, r);
       if (dt <= DEDUP_MS || dm <= DEDUP_M) {
-        if (beats(e, r)) reps[i] = e;   // collision → keep the stronger hit
+        if (beats(e, r)) reps[i] = e;   // collision -> keep the stronger hit
         merged = true;
         break;
       }
@@ -1062,7 +1337,14 @@ function dedupEvents(events) {
   return reps;
 }
 
-// Greedy farthest-point selection for spatial coverage
+/**
+ * Selects up to n events using a greedy farthest-point algorithm, seeding with
+ * the most severe event to ensure the worst potholes are always included.
+ * Used by the "Spread" map filter to maximise geographic coverage.
+ * @param {Array}  events
+ * @param {number} n - Maximum number of pins to return
+ * @returns {Array}
+ */
 function spreadSelect(events, n) {
   if (events.length <= n) return events;
   const pool = [...events].sort((a, b) => beats(a, b) ? -1 : 1);
@@ -1078,6 +1360,12 @@ function spreadSelect(events, n) {
   return sel;
 }
 
+/**
+ * Applies the active map filter to cap the pin count at MAX_PINS.
+ * Filter modes: 'severity' (worst first), 'recent' (newest first), 'spread' (most spread out).
+ * @param {Array} events
+ * @returns {Array} At most MAX_PINS events
+ */
 function filterPins(events) {
   if (events.length <= MAX_PINS) return events;
   if (mapFilterMode === 'recent')
@@ -1088,6 +1376,15 @@ function filterPins(events) {
   return [...events].sort((a, b) => beats(a, b) ? -1 : 1).slice(0, MAX_PINS);
 }
 
+/**
+ * Returns the events to display on the run map.
+ * Prefers the current session; falls back to the most recent stored day
+ * in localStorage that contains GPS-tagged bump events.
+ * @returns {{evts: Array, label: string, noLoc: number}}
+ *   evts   - Events with GPS coordinates
+ *   label  - Human-readable source label (e.g. "this run", "today", "06/09/2025")
+ *   noLoc  - Count of bump events that had no GPS fix (informational for footer)
+ */
 function getRunEvents() {
   // 1) this session's bumps with coordinates
   let evts = potholes.filter(p => p.lat != null && ['auto','manual'].includes(p.type));
@@ -1120,6 +1417,12 @@ function getRunEvents() {
   return { evts, label, noLoc };
 }
 
+/**
+ * Returns the pin color for a bump event based on which axis had the highest g-force.
+ * Red = Z (vertical/pothole), Green = Y (braking), Blue = X (lateral).
+ * @param {Object} p - Pothole event object
+ * @returns {string} CSS color
+ */
 function dominantAxisColor(p) {
   const m = intensityOf(p);
   if (p.z_accel_g === m) return '#e74c3c';
@@ -1127,6 +1430,12 @@ function dominantAxisColor(p) {
   return '#1a6fd4';
 }
 
+/**
+ * Renders the run map inside the Leaflet container.
+ * Creates the map instance on first call; subsequent calls clear and redraw markers.
+ * Pin radius scales with intensity (capped at 16 px). Each pin has a popup showing
+ * time, type, g-forces, speed, and heading.
+ */
 function renderRunMap() {
   const { evts, label, noLoc } = getRunEvents();
   const all   = dedupEvents(evts);
@@ -1135,7 +1444,7 @@ function renderRunMap() {
   document.getElementById('mapTitle').textContent = `Run Map · ${pins.length} pothole${pins.length === 1 ? '' : 's'}`;
   document.getElementById('mapFoot').textContent  = !all.length
     ? (noLoc > 0
-        ? `${noLoc} bump${noLoc === 1 ? '' : 's'} logged WITHOUT a GPS fix — allow location for this site and wait for “GPS ✓” before logging.`
+        ? `${noLoc} bump${noLoc === 1 ? '' : 's'} logged WITHOUT a GPS fix — allow location for this site and wait for "GPS ✓" before logging.`
         : 'No potholes logged yet — start a run, hit some bumps, then stop.')
     : all.length > pins.length
     ? `${all.length} unique potholes after dedup (${label}) — showing ${pins.length} (${mapFilterMode})`
@@ -1144,7 +1453,7 @@ function renderRunMap() {
   if (!runMap) {
     runMap = L.map('runMap', { zoomControl: true });
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19, attribution: '&copy; OpenStreetMap'
+      maxZoom: 19, attribution: '© OpenStreetMap'
     }).addTo(runMap);
     runMarkers = L.layerGroup().addTo(runMap);
   }
@@ -1167,6 +1476,10 @@ function renderRunMap() {
   runMap.fitBounds(bounds.pad(0.25), { maxZoom: 17 });
 }
 
+/**
+ * Opens the run map overlay.
+ * @param {boolean} [auto=false] - If true, silently skips opening when there are no events to show.
+ */
 function openRunMap(auto) {
   if (typeof L === 'undefined') return;            // Leaflet not loaded (offline)
   if (auto && !getRunEvents().evts.length) return; // nothing to show, stay quiet
@@ -1175,10 +1488,15 @@ function openRunMap(auto) {
   setTimeout(() => runMap && runMap.invalidateSize(), 120);
 }
 
+/** Closes the run map overlay. */
 function closeRunMap() {
   document.getElementById('mapOverlay').classList.remove('show');
 }
 
+/**
+ * Switches the active map filter chip and re-renders the map.
+ * @param {'severity'|'recent'|'spread'} mode
+ */
 function setMapFilter(mode) {
   mapFilterMode = mode;
   document.querySelectorAll('.map-chip').forEach(c =>
@@ -1187,6 +1505,15 @@ function setMapFilter(mode) {
 }
 
 // ── Sliders ──────────────────────────────────────────────
+
+/**
+ * Handles a threshold slider change: updates the colored track fill gradient,
+ * refreshes the value label, and writes the new threshold to the corresponding variable.
+ * @param {HTMLInputElement} input     - The range input element
+ * @param {string}           labelId  - ID of the label element to update
+ * @param {string}           color    - CSS color for the filled portion of the track
+ * @param {'x'|'y'|'z'}      threshKey - Which threshold variable to update
+ */
 function onSlider(input, labelId, color, threshKey) {
   const v   = parseFloat(input.value);
   const pct = ((v - 0.1) / (2 - 0.1)) * 100;
@@ -1198,7 +1525,9 @@ function onSlider(input, labelId, color, threshKey) {
   if (threshKey === 'z') zThreshold = v;
 }
 
+// ── Initialisation ────────────────────────────────────────
 window.addEventListener('load', () => {
+  // Wire up the three threshold sliders with their axis colors and variable keys
   const cfg = [
     { id: 'xSlider', lbl: 'xValLbl', color: '#1a6fd4', key: 'x' },
     { id: 'ySlider', lbl: 'yValLbl', color: '#27ae60', key: 'y' },
@@ -1207,7 +1536,7 @@ window.addEventListener('load', () => {
   cfg.forEach(({ id, lbl, color, key }) => {
     const el = document.getElementById(id);
     el.oninput = () => onSlider(el, lbl, color, key);
-    onSlider(el, lbl, color, key);
+    onSlider(el, lbl, color, key); // paint initial state
   });
   resizeCanvas();
 
@@ -1219,5 +1548,6 @@ window.addEventListener('load', () => {
   }
 });
 </script>
+
 </body>
 </html>
